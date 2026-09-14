@@ -1487,7 +1487,7 @@ def emit_target_configuration(
     )
 
     lines.append(
-        "\t\t\t\tGENERATE_ASSET_SYMBOLS = NO;"
+        "\t\t\t\tASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;"
     )
 
     lines.append(
