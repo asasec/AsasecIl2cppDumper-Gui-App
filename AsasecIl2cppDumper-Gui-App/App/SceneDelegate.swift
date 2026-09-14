@@ -9,8 +9,8 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         willConnectTo session: UISceneSession,
         options connectionOptions: UIScene.ConnectionOptions
     ) {
-
         guard let windowScene = scene as? UIWindowScene else {
+            print("ASASEC ERROR: UIWindowScene yok")
             return
         }
 
@@ -18,16 +18,16 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
         let window = UIWindow(windowScene: windowScene)
 
-        let controller = UIViewController()
-        controller.view.backgroundColor = .systemBackground
+        let testViewController = UIViewController()
+        testViewController.view.backgroundColor = .systemRed
 
-        print("ASASEC: Basit UIViewController oluşturuldu")
+        print("ASASEC: Test UIViewController oluşturuldu")
 
-        window.rootViewController = controller
+        window.rootViewController = testViewController
         window.makeKeyAndVisible()
 
         self.window = window
 
-        print("ASASEC: Window görünür")
+        print("ASASEC: Window makeKeyAndVisible yapıldı")
     }
 }
