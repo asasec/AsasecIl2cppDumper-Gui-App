@@ -7,6 +7,7 @@ on:
     branches:
       - main
 
+
 jobs:
 
   build:
@@ -15,31 +16,112 @@ jobs:
 
     steps:
 
+      # ==================================================
+      # CHECKOUT
+      # ==================================================
+
       - name: Checkout
         uses: actions/checkout@v4
 
 
+      # ==================================================
+      # XCODE VERSION
+      # ==================================================
+
       - name: Show Xcode Version
         run: |
+          echo "======================================"
+          echo "Xcode Version"
+          echo "======================================"
+
           xcodebuild -version
 
+          echo ""
+
+          xcode-select -p
+
+
+      # ==================================================
+      # GENERATE XCODE PROJECT
+      # ==================================================
+
+      - name: Generate Xcode Project
+        run: |
+          echo "======================================"
+          echo "Generating Xcode Project"
+          echo "======================================"
+
+          python3 Scripts/generate_xcode_project.py
+
+          echo ""
+
+          echo "======================================"
+          echo "Generated project.pbxproj"
+          echo "======================================"
+
+          ls -lh \
+            "AsasecIl2cppDumper-Gui-App.xcodeproj/project.pbxproj"
+
+          echo ""
+
+          echo "Project directory:"
+          find \
+            "AsasecIl2cppDumper-Gui-App.xcodeproj" \
+            -maxdepth 2 \
+            -print
+
+
+      # ==================================================
+      # SHOW TARGETS
+      # ==================================================
+
+      - name: Verify Xcode Project
+        run: |
+          echo "======================================"
+          echo "Verifying Xcode Project"
+          echo "======================================"
+
+          xcodebuild \
+            -project "AsasecIl2cppDumper-Gui-App.xcodeproj" \
+            -list
+
+          echo ""
+
+          echo "Project verification completed."
+
+
+      # ==================================================
+      # CLEAN
+      # ==================================================
 
       - name: Clean Build
         run: |
+          echo "======================================"
+          echo "Clean Build"
+          echo "======================================"
+
           xcodebuild \
             -project "AsasecIl2cppDumper-Gui-App.xcodeproj" \
-            -scheme "AsasecIl2cppDumper-Gui-App" \
+            -target "AsasecIl2cppDumper-Gui-App" \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath "$GITHUB_WORKSPACE/build" \
             clean
 
 
+      # ==================================================
+      # BUILD
+      # ==================================================
+
       - name: Build iOS App
         run: |
+          echo "======================================"
+          echo "Build iOS App"
+          echo "======================================"
+
           xcodebuild \
             -project "AsasecIl2cppDumper-Gui-App.xcodeproj" \
-            -scheme "AsasecIl2cppDumper-Gui-App" \
+            -target "AsasecIl2cppDumper-Gui-App" \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath "$GITHUB_WORKSPACE/build" \
@@ -47,50 +129,87 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             DEVELOPMENT_TEAM=""
 
+      
+      # ==================================================
+      # FIND APP
+      # ==================================================
 
       - name: Find APP
         run: |
+          echo "======================================"
+          echo "Finding APP"
+          echo "======================================"
 
-          APP_PATH=$(find "$GITHUB_WORKSPACE/build" \
+          APP_PATH=$(find \
+            "$GITHUB_WORKSPACE/build" \
             -type d \
             -name "AsasecIl2cppDumper-Gui-App.app" \
             | head -n 1)
 
           if [ -z "$APP_PATH" ]; then
+
+            echo ""
             echo "HATA: .app bulunamadı!"
+
+            echo ""
+            echo "Build directory:"
+            find \
+              "$GITHUB_WORKSPACE/build" \
+              -maxdepth 5 \
+              -print
+
             exit 1
+
           fi
 
+          echo ""
           echo "APP bulundu:"
           echo "$APP_PATH"
 
           echo ""
+
           echo "APP içeriği:"
+          find \
+            "$APP_PATH" \
+            -maxdepth 3 \
+            -print
 
-          find "$APP_PATH" -maxdepth 2 -print
 
+      # ==================================================
+      # CREATE IPA
+      # ==================================================
 
       - name: Create IPA
         run: |
+          echo "======================================"
+          echo "Creating IPA"
+          echo "======================================"
 
-          APP_PATH=$(find "$GITHUB_WORKSPACE/build" \
+          APP_PATH=$(find \
+            "$GITHUB_WORKSPACE/build" \
             -type d \
             -name "AsasecIl2cppDumper-Gui-App.app" \
             | head -n 1)
 
           if [ -z "$APP_PATH" ]; then
+
             echo "HATA: .app bulunamadı!"
+
             exit 1
+
           fi
 
+          echo ""
           echo "APP:"
           echo "$APP_PATH"
 
           echo ""
 
-          rm -rf "$GITHUB_WORKSPACE/ipa"
+          rm -rf \
+            "$GITHUB_WORKSPACE/ipa"
 
-          mkdir -p "$GITHUB_WORKSPACE/ipa/Payload"
+          mkdir -p \
+            "$GITHUB_WORKSPACE/ipa/Payload"
 
           echo "APP Payload içine kopyalanıyor..."
 
@@ -100,15 +219,18 @@ jobs:
 
           echo ""
 
-          echo "Payload içeriği:"
-
-          find "$GITHUB_WORKSPACE/ipa/Payload" -maxdepth 3 -print
+          echo "Payload:"
+          find \
+            "$GITHUB_WORKSPACE/ipa/Payload" \
+            -maxdepth 3 \
+            -print
 
           echo ""
 
-          echo "IPA oluşturuluyor..."
+          cd \
+            "$GITHUB_WORKSPACE/ipa"
 
-          cd "$GITHUB_WORKSPACE/ipa"
+          echo "IPA oluşturuluyor..."
 
           zip -r \
             "$GITHUB_WORKSPACE/AsasecIl2cppDumper.ipa" \
@@ -118,16 +240,21 @@ jobs:
 
           echo "IPA oluşturuldu:"
 
-          ls -lh "$GITHUB_WORKSPACE/AsasecIl2cppDumper.ipa"
+          ls -lh \
+            "$GITHUB_WORKSPACE/AsasecIl2cppDumper.ipa"
 
+
+      # ==================================================
+      # VERIFY IPA
+      # ==================================================
 
       - name: Verify IPA
         run: |
+          echo "======================================"
+          echo "Verify IPA"
+          echo "======================================"
 
           IPA_PATH="$GITHUB_WORKSPACE/AsasecIl2cppDumper.ipa"
-
-          echo "Kontrol edilen IPA:"
-          echo "$IPA_PATH"
 
           if [ ! -f "$IPA_PATH" ]; then
 
@@ -135,18 +262,16 @@ jobs:
             echo "HATA: IPA oluşturulamadı!"
 
             echo ""
-            echo "GITHUB_WORKSPACE:"
-            echo "$GITHUB_WORKSPACE"
+            echo "Mevcut IPA dosyaları:"
 
-            echo ""
-            echo "Mevcut dosyalar:"
-
-            find "$GITHUB_WORKSPACE" \
-              -maxdepth 3 \
+            find \
+              "$GITHUB_WORKSPACE" \
+              -maxdepth 4 \
               -name "*.ipa" \
               -print
 
             exit 1
+
           fi
 
           echo ""
@@ -154,21 +279,28 @@ jobs:
           echo "$IPA_PATH"
 
           echo ""
+
           echo "IPA boyutu:"
 
-          ls -lh "$IPA_PATH"
+          ls -lh \
+            "$IPA_PATH"
 
           echo ""
+
           echo "IPA içeriği:"
 
-          unzip -l "$IPA_PATH"
+          unzip -l \
+            "$IPA_PATH"
 
+
+      # ==================================================
+      # UPLOAD IPA
+      # ==================================================
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
 
         with:
-
           name: AsasecIl2cppDumper-IPA
 
           path: ${{ github.workspace }}/AsasecIl2cppDumper.ipa
