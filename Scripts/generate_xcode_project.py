@@ -38,10 +38,13 @@ SOURCE_TYPES = {
     ".c": "sourcecode.c.c",
     ".cc": "sourcecode.cpp.cpp",
     ".cpp": "sourcecode.cpp.cpp",
+}
 
+HEADER_TYPES = {
     ".h": "sourcecode.c.h",
     ".hh": "sourcecode.cpp.h",
     ".hpp": "sourcecode.cpp.h",
+    ".hxx": "sourcecode.cpp.h",
 }
 
 RESOURCE_TYPES = {
@@ -50,10 +53,8 @@ RESOURCE_TYPES = {
 
     ".json": "text.json",
     ".strings": "text.plist.strings",
-}
 
-SPECIAL_DIRECTORIES = {
-    ".xcassets": "folder.assetcatalog",
+    ".metal": "sourcecode.metal",
 }
 
 
@@ -62,13 +63,6 @@ SPECIAL_DIRECTORIES = {
 # ============================================================
 
 def make_uuid(value):
-    """
-    Deterministic UUID.
-
-    Aynı dosya aynı UUID'yi üretir.
-    Böylece her GitHub Actions çalışmasında
-    gereksiz UUID değişiklikleri oluşmaz.
-    """
 
     return uuid.uuid5(
         uuid.NAMESPACE_URL,
@@ -80,7 +74,26 @@ def make_uuid(value):
 # HELPERS
 # ============================================================
 
+def normalize(path):
+
+    return path.replace(
+        os.sep,
+        "/"
+    )
+
+
+def extension(path):
+
+    return os.path.splitext(
+        path
+    )[1].lower()
+
+
 def quote(value):
+
+    if value is None:
+        return '""'
+
     if any(
         character in value
         for character in [
@@ -90,41 +103,149 @@ def quote(value):
             ")",
         ]
     ):
+
         return '"' + value + '"'
 
     return value
 
 
-def normalize(path):
-    return path.replace(
-        os.sep,
-        "/"
-    )
-
-
-def extension(path):
-    return os.path.splitext(
-        path
-    )[1].lower()
-
-
 def is_source(path):
+
     return extension(path) in SOURCE_TYPES
 
 
+def is_header(path):
+
+    return extension(path) in HEADER_TYPES
+
+
 def is_resource(path):
+
     return extension(path) in RESOURCE_TYPES
 
 
 # ============================================================
-# PROJECT SCANNER
+# GROUP
 # ============================================================
 
-def scan_files():
+class Group:
 
-    files = []
+    def __init__(
+        self,
+        group_id,
+        name=None,
+        path=None,
+        parent=None,
+        is_root=False
+    ):
 
-    if not os.path.isdir(SOURCE_ROOT):
+        self.id = group_id
+        self.name = name
+        self.path = path
+        self.parent = parent
+        self.is_root = is_root
+
+        self.children = []
+
+
+# ============================================================
+# PROJECT DATA
+# ============================================================
+
+class PBXData:
+
+    def __init__(self):
+
+        # Main IDs
+        self.project_id = make_uuid(
+            "project:" + PROJECT_NAME
+        )
+
+        self.target_id = make_uuid(
+            "target:" + TARGET_NAME
+        )
+
+        # Groups
+        self.root_group_id = make_uuid(
+            "group:root"
+        )
+
+        self.app_group_id = make_uuid(
+            "group:" + APP_DIRECTORY
+        )
+
+        self.products_group_id = make_uuid(
+            "group:Products"
+        )
+
+        # Build phases
+        self.sources_phase_id = make_uuid(
+            "sources:" + TARGET_NAME
+        )
+
+        self.frameworks_phase_id = make_uuid(
+            "frameworks:" + TARGET_NAME
+        )
+
+        self.resources_phase_id = make_uuid(
+            "resources:" + TARGET_NAME
+        )
+
+        # Project configuration
+        self.project_config_list_id = make_uuid(
+            "project-config:" + PROJECT_NAME
+        )
+
+        self.debug_project_config_id = make_uuid(
+            "project-debug:" + PROJECT_NAME
+        )
+
+        self.release_project_config_id = make_uuid(
+            "project-release:" + PROJECT_NAME
+        )
+
+        # Target configuration
+        self.target_config_list_id = make_uuid(
+            "target-config:" + TARGET_NAME
+        )
+
+        self.debug_target_config_id = make_uuid(
+            "target-debug:" + TARGET_NAME
+        )
+
+        self.release_target_config_id = make_uuid(
+            "target-release:" + TARGET_NAME
+        )
+
+        # File references
+        self.file_references = []
+
+        # Build files
+        self.build_files = []
+
+        # Source build files
+        self.source_build_files = []
+
+        # Resource build files
+        self.resource_build_files = []
+
+        # Groups
+        self.root_group = None
+
+        self.group_map = {}
+
+
+# ============================================================
+# SCAN
+# ============================================================
+
+def scan_project_files():
+
+    result = []
+
+    if not os.path.isdir(
+        SOURCE_ROOT
+    ):
 
         raise RuntimeError(
             "Kaynak klasörü bulunamadı: "
@@ -135,12 +256,15 @@ def scan_files():
         SOURCE_ROOT
     ):
 
+        # Asset catalogların içine girme.
         directories[:] = [
             directory
             for directory in directories
-            if directory not in {
+            if not directory.endswith(".xcassets")
+            and directory not in {
                 ".git",
                 "DerivedData",
+                "build",
             }
         ]
 
@@ -158,25 +282,33 @@ def scan_files():
                 )
             )
 
-            # Info.plist build resource değildir.
+            # Info.plist kaynak olarak eklenmez.
             if filename == "Info.plist":
+                continue
+
+            # Asset catalog içerisindeki dosyalar
+            # ayrıca eklenmez.
+            if ".xcassets/" in relative_path:
                 continue
 
             if (
                 is_source(relative_path)
                 or
+                is_header(relative_path)
+                or
                 is_resource(relative_path)
             ):
-                files.append(
+
+                result.append(
                     relative_path
                 )
 
-    return sorted(files)
+    return sorted(result)
 
 
 def scan_asset_catalogs():
 
-    catalogs = []
+    result = []
 
     for root, directories, filenames in os.walk(
         SOURCE_ROOT
@@ -200,132 +332,41 @@ def scan_asset_catalogs():
                     )
                 )
 
-                catalogs.append(
+                result.append(
                     relative_path
                 )
 
+                # İçine tekrar girme.
                 directories.remove(
                     directory
                 )
 
-    return sorted(catalogs)
-
-
-# ============================================================
-# PBX DATA
-# ============================================================
-
-class PBXData:
-
-    def __init__(self):
-
-        self.file_references = []
-        self.build_files = []
-
-        self.groups = []
-
-        self.source_build_files = []
-        self.resource_build_files = []
-
-        self.root_group_id = make_uuid(
-            "group:root"
-        )
-
-        self.app_group_id = make_uuid(
-            "group:" + APP_DIRECTORY
-        )
-
-        self.products_group_id = make_uuid(
-            "group:products"
-        )
-
-        self.project_id = make_uuid(
-            "project:" + PROJECT_NAME
-        )
-
-        self.target_id = make_uuid(
-            "target:" + TARGET_NAME
-        )
-
-        self.sources_phase_id = make_uuid(
-            "sources:" + TARGET_NAME
-        )
-
-        self.resources_phase_id = make_uuid(
-            "resources:" + TARGET_NAME
-        )
-
-        self.frameworks_phase_id = make_uuid(
-            "frameworks:" + TARGET_NAME
-        )
-
-        self.project_config_list_id = make_uuid(
-            "project-config:" + PROJECT_NAME
-        )
-
-        self.target_config_list_id = make_uuid(
-            "target-config:" + TARGET_NAME
-        )
-
-        self.debug_project_config_id = make_uuid(
-            "project-debug:" + PROJECT_NAME
-        )
-
-        self.release_project_config_id = make_uuid(
-            "project-release:" + PROJECT_NAME
-        )
-
-        self.debug_target_config_id = make_uuid(
-            "target-debug:" + TARGET_NAME
-        )
-
-        self.release_target_config_id = make_uuid(
-            "target-release:" + TARGET_NAME
-        )
+    return sorted(result)
 
 
 # ============================================================
 # GROUP TREE
 # ============================================================
 
-class Group:
-
-    def __init__(
-        self,
-        group_id,
-        name,
-        path,
-        parent=None
-    ):
-
-        self.id = group_id
-        self.name = name
-        self.path = path
-        self.parent = parent
-
-        self.children = []
-
-
 def create_group_tree(data):
 
     root = Group(
         data.root_group_id,
-        None,
-        None
+        is_root=True
     )
 
     app_group = Group(
         data.app_group_id,
-        APP_DIRECTORY,
-        APP_DIRECTORY,
-        root
+        name=APP_DIRECTORY,
+        path=APP_DIRECTORY,
+        parent=root
     )
 
     products_group = Group(
         data.products_group_id,
-        "Products",
-        None,
-        root
+        name="Products",
+        path=None,
+        parent=root
     )
 
     root.children.append(
@@ -336,82 +377,65 @@ def create_group_tree(data):
         products_group
     )
 
-    group_map = {
-        "": app_group
-    }
+    data.root_group = root
 
-    # Kaynak dosyalar
-    all_files = scan_files()
-
-    # Asset cataloglar
-    asset_catalogs = scan_asset_catalogs()
-
-    all_paths = []
-
-    for path in all_files:
-        all_paths.append(path)
-
-    for path in asset_catalogs:
-        all_paths.append(path)
-
-    for relative_path in sorted(
-        all_paths
-    ):
-
-        directory = os.path.dirname(
-            relative_path
-        )
-
-        if directory == "":
-            continue
-
-        current = app_group
-        current_path = ""
-
-        for part in directory.split("/"):
-
-            if current_path == "":
-                current_path = part
-            else:
-                current_path += "/" + part
-
-            if current_path not in group_map:
-
-                group_id = make_uuid(
-                    "group:" + current_path
-                )
-
-                new_group = Group(
-                    group_id,
-                    part,
-                    part,
-                    current
-                )
-
-                current.children.append(
-                    new_group
-                )
-
-                group_map[
-                    current_path
-                ] = new_group
-
-            current = group_map[
-                current_path
-            ]
-
-    data.groups = root
+    data.group_map[""] = app_group
 
     return root
 
 
+def ensure_group(
+    data,
+    directory
+):
+
+    if directory in data.group_map:
+
+        return data.group_map[
+            directory
+        ]
+
+    parent_directory = os.path.dirname(
+        directory
+    )
+
+    parent_group = ensure_group(
+        data,
+        parent_directory
+    )
+
+    name = os.path.basename(
+        directory
+    )
+
+    group_id = make_uuid(
+        "group:" + directory
+    )
+
+    group = Group(
+        group_id,
+        name=name,
+        path=name,
+        parent=parent_group
+    )
+
+    parent_group.children.append(
+        group
+    )
+
+    data.group_map[
+        directory
+    ] = group
+
+    return group
+
+
 # ============================================================
-# PBX FILES
+# ADD FILE
 # ============================================================
 
 def add_file(
     data,
-    group_map,
     relative_path
 ):
 
@@ -419,78 +443,116 @@ def add_file(
         relative_path
     )
 
+    ext = extension(
+        relative_path
+    )
+
+    if ext in SOURCE_TYPES:
+
+        file_type = SOURCE_TYPES[
+            ext
+        ]
+
+        is_build_source = True
+        is_build_resource = False
+
+    elif ext in HEADER_TYPES:
+
+        file_type = HEADER_TYPES[
+            ext
+        ]
+
+        is_build_source = False
+        is_build_resource = False
+
+    elif ext in RESOURCE_TYPES:
+
+        file_type = RESOURCE_TYPES[
+            ext
+        ]
+
+        is_build_source = False
+        is_build_resource = True
+
+    else:
+
+        return
+
     file_id = make_uuid(
         "file:" + relative_path
     )
 
-    build_id = make_uuid(
-        "build:" + relative_path
-    )
-
-    file_type = SOURCE_TYPES.get(
-        extension(relative_path)
-    )
-
-    if file_type is None:
-
-        file_type = RESOURCE_TYPES.get(
-            extension(relative_path)
-        )
-
-    if file_type is None:
-        return
-
     data.file_references.append(
-        (
-            file_id,
-            filename,
-            file_type,
-            relative_path
-        )
+        {
+            "id": file_id,
+            "name": filename,
+            "path": relative_path,
+            "type": file_type,
+        }
     )
 
-    data.build_files.append(
-        (
-            build_id,
-            filename,
-            file_id
-        )
+    group_path = os.path.dirname(
+        relative_path
     )
 
-    if is_source(relative_path):
+    group = ensure_group(
+        data,
+        group_path
+    )
+
+    group.children.append(
+        {
+            "type": "file",
+            "id": file_id,
+            "name": filename,
+        }
+    )
+
+    if is_build_source:
+
+        build_id = make_uuid(
+            "build:" + relative_path
+        )
+
+        data.build_files.append(
+            {
+                "id": build_id,
+                "name": filename,
+                "file_id": file_id,
+                "phase": "Sources",
+            }
+        )
 
         data.source_build_files.append(
             build_id
         )
 
-    elif is_resource(relative_path):
+    elif is_build_resource:
+
+        build_id = make_uuid(
+            "build-resource:" + relative_path
+        )
+
+        data.build_files.append(
+            {
+                "id": build_id,
+                "name": filename,
+                "file_id": file_id,
+                "phase": "Resources",
+            }
+        )
 
         data.resource_build_files.append(
             build_id
         )
 
-    directory = os.path.dirname(
-        relative_path
-    )
 
-    group = group_map.get(
-        directory
-    )
-
-    if group is None:
-        group = group_map[""]
-
-    group.children.append(
-        (
-            file_id,
-            filename
-        )
-    )
-
+# ============================================================
+# ADD ASSET CATALOG
+# ============================================================
 
 def add_asset_catalog(
     data,
-    group_map,
     relative_path
 ):
 
@@ -507,109 +569,89 @@ def add_asset_catalog(
     )
 
     data.file_references.append(
-        (
-            file_id,
-            filename,
-            "folder.assetcatalog",
-            relative_path
-        )
+        {
+            "id": file_id,
+            "name": filename,
+            "path": relative_path,
+            "type": "folder.assetcatalog",
+        }
+    )
+
+    group_path = os.path.dirname(
+        relative_path
+    )
+
+    group = ensure_group(
+        data,
+        group_path
+    )
+
+    group.children.append(
+        {
+            "type": "file",
+            "id": file_id,
+            "name": filename,
+        }
     )
 
     data.build_files.append(
-        (
-            build_id,
-            filename,
-            file_id
-        )
+        {
+            "id": build_id,
+            "name": filename,
+            "file_id": file_id,
+            "phase": "Resources",
+        }
     )
 
     data.resource_build_files.append(
         build_id
     )
 
-    directory = os.path.dirname(
-        relative_path
-    )
 
-    group = group_map.get(
-        directory
-    )
+# ============================================================
+# GROUP OUTPUT
+# ============================================================
 
-    if group is None:
-        group = group_map[""]
+def group_sort_key(child):
 
-    group.children.append(
-        (
-            file_id,
-            filename
+    if isinstance(
+        child,
+        Group
+    ):
+
+        return (
+            0,
+            (child.name or "").lower()
         )
+
+    return (
+        1,
+        (child["name"] or "").lower()
     )
 
 
-def collect_group_map(group):
-
-    result = {
-        ""
-        if group.parent is None
-        else group.path:
-        group
-    }
-
-    for child in group.children:
-
-        if isinstance(
-            child,
-            Group
-        ):
-
-            result.update(
-                collect_group_map(
-                    child
-                )
-            )
-
-    return result
-
-
-# ============================================================
-# PBX GROUP GENERATOR
-# ============================================================
-
-def generate_groups(
+def generate_group(
     group,
-    output
+    lines
 ):
 
-    output.append(
+    lines.append(
         "\t\t"
         + group.id
         + " = {"
     )
 
-    output.append(
+    lines.append(
         "\t\t\tisa = PBXGroup;"
     )
 
-    output.append(
+    lines.append(
         "\t\t\tchildren = ("
     )
 
-    children = list(
-        group.children
-    )
-
-    children.sort(
-        key=lambda item:
-        (
-            0
-            if isinstance(item, Group)
-            else 1,
-            (
-                item.name
-                if isinstance(item, Group)
-                else item[1]
-            ).lower()
-        )
+    children = sorted(
+        group.children,
+        key=group_sort_key
     )
 
     for child in children:
@@ -619,9 +661,9 @@ def generate_groups(
             Group
         ):
 
-            comment = child.name
+            comment = child.name or "Group"
 
-            output.append(
+            lines.append(
                 "\t\t\t\t"
                 + child.id
                 + " /* "
@@ -631,43 +673,46 @@ def generate_groups(
 
         else:
 
-            file_id, filename = child
-
-            output.append(
+            lines.append(
                 "\t\t\t\t"
-                + file_id
+                + child["id"]
                 + " /* "
-                + filename
+                + child["name"]
                 + " */,"
             )
 
-    output.append(
+    lines.append(
         "\t\t\t);"
     )
 
-    if group.name is not None:
+    # Root group kesinlikle path/name almaz.
+    if not group.is_root:
 
-        output.append(
-            "\t\t\tname = "
-            + quote(group.name)
-            + ";"
-        )
+        if group.name is not None:
 
-        output.append(
-            "\t\t\tpath = "
-            + quote(group.path)
-            + ";"
-        )
+            lines.append(
+                "\t\t\tname = "
+                + quote(group.name)
+                + ";"
+            )
 
-    output.append(
+        if group.path is not None:
+
+            lines.append(
+                "\t\t\tpath = "
+                + quote(group.path)
+                + ";"
+            )
+
+    lines.append(
         "\t\t\tsourceTree = \"<group>\";"
     )
 
-    output.append(
+    lines.append(
         "\t\t};"
     )
 
-    output.append("")
+    lines.append("")
 
     for child in children:
 
@@ -676,90 +721,103 @@ def generate_groups(
             Group
         ):
 
-            generate_groups(
+            generate_group(
                 child,
-                output
+                lines
             )
 
 
 # ============================================================
-# PROJECT GENERATION
+# BUILD FILE NAME
+# ============================================================
+
+def build_file_name(
+    data,
+    build_id
+):
+
+    for item in data.build_files:
+
+        if item["id"] == build_id:
+
+            return item["name"]
+
+    return "Unknown"
+
+
+# ============================================================
+# GENERATE PROJECT
 # ============================================================
 
 def generate_project():
 
     data = PBXData()
 
-    root = create_group_tree(
+    create_group_tree(
         data
     )
 
-    group_map = collect_group_map(
-        root
-    )
+    files = scan_project_files()
 
-    source_files = scan_files()
+    assets = scan_asset_catalogs()
 
-    for relative_path in source_files:
+    for relative_path in files:
 
         add_file(
             data,
-            group_map,
             relative_path
         )
 
-    asset_catalogs = scan_asset_catalogs()
-
-    for relative_path in asset_catalogs:
+    for relative_path in assets:
 
         add_asset_catalog(
             data,
-            group_map,
             relative_path
         )
 
-    # --------------------------------------------------------
-    # Product
-    # --------------------------------------------------------
+    # ========================================================
+    # PRODUCT
+    # ========================================================
 
     product_file_id = make_uuid(
         "product:" + TARGET_NAME
     )
 
     data.file_references.append(
-        (
-            product_file_id,
-            TARGET_NAME + ".app",
-            "wrapper.application",
-            TARGET_NAME + ".app"
-        )
+        {
+            "id": product_file_id,
+            "name": TARGET_NAME + ".app",
+            "path": TARGET_NAME + ".app",
+            "type": "wrapper.application",
+            "product": True,
+        }
     )
 
     products_group = None
 
-    for child in root.children:
+    for child in data.root_group.children:
 
         if (
             isinstance(child, Group)
-            and child.id == data.products_group_id
+            and
+            child.id == data.products_group_id
         ):
 
             products_group = child
 
             break
 
-    if products_group is not None:
+    products_group.children.append(
+        {
+            "type": "file",
+            "id": product_file_id,
+            "name": TARGET_NAME + ".app",
+        }
+    )
 
-        products_group.children.append(
-            (
-                product_file_id,
-                TARGET_NAME + ".app"
-            )
-        )
-
-    # --------------------------------------------------------
-    # Output
-    # --------------------------------------------------------
+    # ========================================================
+    # OUTPUT
+    # ========================================================
 
     lines = []
 
@@ -793,31 +851,23 @@ def generate_project():
 
     lines.append("")
 
-    # --------------------------------------------------------
+    # ========================================================
     # PBXBuildFile
-    # --------------------------------------------------------
+    # ========================================================
 
     lines.append(
         "/* Begin PBXBuildFile section */"
     )
 
-    for (
-        build_id,
-        filename,
-        file_id
-    ) in data.build_files:
+    for item in data.build_files:
 
         lines.append(
             "\t\t"
-            + build_id
+            + item["id"]
             + " /* "
-            + filename
+            + item["name"]
             + " in "
-            + (
-                "Sources"
-                if build_id in data.source_build_files
-                else "Resources"
-            )
+            + item["phase"]
             + " */ = {"
         )
 
@@ -827,9 +877,9 @@ def generate_project():
 
         lines.append(
             "\t\t\tfileRef = "
-            + file_id
+            + item["file_id"]
             + " /* "
-            + filename
+            + item["name"]
             + " */;"
         )
 
@@ -843,26 +893,21 @@ def generate_project():
 
     lines.append("")
 
-    # --------------------------------------------------------
+    # ========================================================
     # PBXFileReference
-    # --------------------------------------------------------
+    # ========================================================
 
     lines.append(
         "/* Begin PBXFileReference section */"
     )
 
-    for (
-        file_id,
-        filename,
-        file_type,
-        path
-    ) in data.file_references:
+    for item in data.file_references:
 
         lines.append(
             "\t\t"
-            + file_id
+            + item["id"]
             + " /* "
-            + filename
+            + item["name"]
             + " */ = {"
         )
 
@@ -870,7 +915,10 @@ def generate_project():
             "\t\t\tisa = PBXFileReference;"
         )
 
-        if file_type == "wrapper.application":
+        if item.get(
+            "product",
+            False
+        ):
 
             lines.append(
                 "\t\t\texplicitFileType = wrapper.application;"
@@ -880,27 +928,29 @@ def generate_project():
                 "\t\t\tincludeInIndex = 0;"
             )
 
-        else:
-
             lines.append(
-                "\t\t\tlastKnownFileType = "
-                + file_type
+                "\t\t\tpath = "
+                + quote(item["path"])
                 + ";"
             )
-
-        lines.append(
-            "\t\t\tpath = "
-            + quote(path)
-            + ";"
-        )
-
-        if file_type == "wrapper.application":
 
             lines.append(
                 "\t\t\tsourceTree = BUILT_PRODUCTS_DIR;"
             )
 
         else:
+
+            lines.append(
+                "\t\t\tlastKnownFileType = "
+                + item["type"]
+                + ";"
+            )
+
+            lines.append(
+                "\t\t\tpath = "
+                + quote(item["path"])
+                + ";"
+            )
 
             lines.append(
                 "\t\t\tsourceTree = \"<group>\";"
@@ -916,9 +966,9 @@ def generate_project():
 
     lines.append("")
 
-    # --------------------------------------------------------
-    # Frameworks
-    # --------------------------------------------------------
+    # ========================================================
+    # PBXFrameworksBuildPhase
+    # ========================================================
 
     lines.append(
         "/* Begin PBXFrameworksBuildPhase section */"
@@ -960,23 +1010,17 @@ def generate_project():
 
     lines.append("")
 
-    # --------------------------------------------------------
-    # Groups
-    # --------------------------------------------------------
+    # ========================================================
+    # PBXGroup
+    # ========================================================
 
     lines.append(
         "/* Begin PBXGroup section */"
     )
 
-    group_output = []
-
-    generate_groups(
-        root,
-        group_output
-    )
-
-    lines.extend(
-        group_output
+    generate_group(
+        data.root_group,
+        lines
     )
 
     lines.append(
@@ -985,9 +1029,9 @@ def generate_project():
 
     lines.append("")
 
-    # --------------------------------------------------------
-    # Native Target
-    # --------------------------------------------------------
+    # ========================================================
+    # PBXNativeTarget
+    # ========================================================
 
     lines.append(
         "/* Begin PBXNativeTarget section */"
@@ -1089,9 +1133,9 @@ def generate_project():
 
     lines.append("")
 
-    # --------------------------------------------------------
+    # ========================================================
     # PBXProject
-    # --------------------------------------------------------
+    # ========================================================
 
     lines.append(
         "/* Begin PBXProject section */"
@@ -1223,9 +1267,9 @@ def generate_project():
 
     lines.append("")
 
-    # --------------------------------------------------------
-    # Resources
-    # --------------------------------------------------------
+    # ========================================================
+    # PBXResourcesBuildPhase
+    # ========================================================
 
     lines.append(
         "/* Begin PBXResourcesBuildPhase section */"
@@ -1251,19 +1295,10 @@ def generate_project():
 
     for build_id in data.resource_build_files:
 
-        filename = ""
-
-        for (
-            candidate_id,
-            candidate_filename,
-            candidate_file_id
-        ) in data.build_files:
-
-            if candidate_id == build_id:
-
-                filename = candidate_filename
-
-                break
+        filename = build_file_name(
+            data,
+            build_id
+        )
 
         lines.append(
             "\t\t\t\t"
@@ -1291,9 +1326,9 @@ def generate_project():
 
     lines.append("")
 
-    # --------------------------------------------------------
-    # Sources
-    # --------------------------------------------------------
+    # ========================================================
+    # PBXSourcesBuildPhase
+    # ========================================================
 
     lines.append(
         "/* Begin PBXSourcesBuildPhase section */"
@@ -1319,19 +1354,10 @@ def generate_project():
 
     for build_id in data.source_build_files:
 
-        filename = ""
-
-        for (
-            candidate_id,
-            candidate_filename,
-            candidate_file_id
-        ) in data.build_files:
-
-            if candidate_id == build_id:
-
-                filename = candidate_filename
-
-                break
+        filename = build_file_name(
+            data,
+            build_id
+        )
 
         lines.append(
             "\t\t\t\t"
@@ -1359,15 +1385,17 @@ def generate_project():
 
     lines.append("")
 
-    # --------------------------------------------------------
-    # Build Configurations
-    # --------------------------------------------------------
+    # ========================================================
+    # XCBuildConfiguration
+    # ========================================================
 
     lines.append(
         "/* Begin XCBuildConfiguration section */"
     )
 
+    # --------------------------------------------------------
     # Project Debug
+    # --------------------------------------------------------
 
     lines.append(
         "\t\t"
@@ -1423,7 +1451,9 @@ def generate_project():
         "\t\t};"
     )
 
+    # --------------------------------------------------------
     # Project Release
+    # --------------------------------------------------------
 
     lines.append(
         "\t\t"
@@ -1491,7 +1521,9 @@ def generate_project():
         "\t\t};"
     )
 
+    # --------------------------------------------------------
     # Target Debug
+    # --------------------------------------------------------
 
     lines.append(
         "\t\t"
@@ -1573,7 +1605,9 @@ def generate_project():
         "\t\t};"
     )
 
+    # --------------------------------------------------------
     # Target Release
+    # --------------------------------------------------------
 
     lines.append(
         "\t\t"
@@ -1603,6 +1637,10 @@ def generate_project():
 
     lines.append(
         "\t\t\t\tCODE_SIGN_IDENTITY = \"\";"
+    )
+
+    lines.append(
+        "\t\t\t\tDEVELOPMENT_TEAM = \"\";"
     )
 
     lines.append(
@@ -1661,9 +1699,9 @@ def generate_project():
 
     lines.append("")
 
-    # --------------------------------------------------------
-    # Configuration Lists
-    # --------------------------------------------------------
+    # ========================================================
+    # XCConfigurationList
+    # ========================================================
 
     lines.append(
         "/* Begin XCConfigurationList section */"
@@ -1763,9 +1801,9 @@ def generate_project():
 
     lines.append("")
 
-    # --------------------------------------------------------
-    # End
-    # --------------------------------------------------------
+    # ========================================================
+    # END
+    # ========================================================
 
     lines.append(
         "\t};"
@@ -1799,26 +1837,29 @@ def main():
     print("")
 
     print(
-        "Project : " + PROJECT_NAME
+        "Project : "
+        + PROJECT_NAME
     )
 
     print(
-        "Target  : " + TARGET_NAME
+        "Target  : "
+        + TARGET_NAME
     )
 
     print(
-        "Bundle  : " + BUNDLE_IDENTIFIER
+        "Bundle  : "
+        + BUNDLE_IDENTIFIER
     )
 
     print("")
 
     if not os.path.isdir(
-        APP_DIRECTORY
+        SOURCE_ROOT
     ):
 
         raise SystemExit(
             "HATA: "
-            + APP_DIRECTORY
+            + SOURCE_ROOT
             + " klasörü bulunamadı."
         )
 
@@ -1826,7 +1867,7 @@ def main():
     # Scan
     # --------------------------------------------------------
 
-    files = scan_files()
+    files = scan_project_files()
     assets = scan_asset_catalogs()
 
     print(
@@ -1858,7 +1899,7 @@ def main():
     print("")
 
     # --------------------------------------------------------
-    # Recreate xcodeproj
+    # Remove old project
     # --------------------------------------------------------
 
     if os.path.isdir(
@@ -1899,6 +1940,26 @@ def main():
             project_text
         )
 
+    # --------------------------------------------------------
+    # Validation
+    # --------------------------------------------------------
+
+    if not os.path.isfile(
+        PROJECT_FILE
+    ):
+
+        raise SystemExit(
+            "HATA: project.pbxproj oluşturulamadı."
+        )
+
+    if os.path.getsize(
+        PROJECT_FILE
+    ) == 0:
+
+        raise SystemExit(
+            "HATA: project.pbxproj boş oluşturuldu."
+        )
+
     print("")
 
     print(
@@ -1913,14 +1974,24 @@ def main():
     print("")
 
     print(
-        "Toplam kaynak:"
-        + " "
+        "Dosya boyutu: "
+        + str(
+            os.path.getsize(
+                PROJECT_FILE
+            )
+        )
+        + " bytes"
+    )
+
+    print("")
+
+    print(
+        "Kaynak sayısı: "
         + str(len(files))
     )
 
     print(
-        "Toplam asset:"
-        + " "
+        "Asset catalog sayısı: "
         + str(len(assets))
     )
 
