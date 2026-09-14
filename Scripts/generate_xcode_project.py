@@ -23,23 +23,35 @@ PROJECT_FILE = os.path.join(
 )
 
 # ------------------------------------------------------------
-# IMPORTANT
-#
-# Real filesystem:
+# REAL FILESYSTEM
 #
 # AsasecIl2cppDumper-Gui-App/
+#
 # ├── App/
 # │   ├── AppDelegate.swift
 # │   └── SceneDelegate.swift
+# │
 # ├── Components/
+# │   ├── ModernCardView.swift
+# │   ├── OutputConsoleView.swift
+# │   └── PathInputView.swift
+# │
 # ├── Controllers/
+# │   ├── MainViewController.swift
+# │   └── SettingsViewController.swift
+# │
 # ├── Services/
+# │   ├── DumpManager.swift
+# │   └── FilePickerService.swift
+# │
 # ├── Theme/
+# │   └── AppTheme.swift
+# │
 # ├── Assets.xcassets
 # ├── LaunchScreen.storyboard
 # └── Info.plist
 #
-# SOURCE_ROOT is the real source directory.
+# SOURCE_ROOT = gerçek kaynak klasörü.
 # ------------------------------------------------------------
 
 SOURCE_ROOT = APP_DIRECTORY
@@ -50,6 +62,7 @@ SOURCE_ROOT = APP_DIRECTORY
 # ============================================================
 
 def normalize(path):
+
     path = path.replace("\\", "/")
 
     while "//" in path:
@@ -65,6 +78,7 @@ def normalize(path):
 
 
 def make_uuid(seed):
+
     return uuid.uuid5(
         uuid.NAMESPACE_URL,
         "asasec-xcode-generator:" + seed
@@ -72,6 +86,7 @@ def make_uuid(seed):
 
 
 def xcode_quote(value):
+
     return (
         str(value)
         .replace("\\", "\\\\")
@@ -93,12 +108,15 @@ class Group:
         parent=None,
         is_root=False
     ):
+
         self.id = group_id
         self.name = name
         self.path = path
         self.parent = parent
+
         self.children = []
         self.files = []
+
         self.is_root = is_root
 
 
@@ -107,17 +125,27 @@ class ProjectData:
     def __init__(self):
 
         # ----------------------------------------------------
-        # Main IDs
+        # MAIN IDS
         # ----------------------------------------------------
 
-        self.project_id = make_uuid("project")
-        self.target_id = make_uuid("target")
+        self.project_id = make_uuid(
+            "project"
+        )
 
-        self.root_group_id = make_uuid("group:root")
-        self.products_group_id = make_uuid("group:products")
+        self.target_id = make_uuid(
+            "target"
+        )
+
+        self.root_group_id = make_uuid(
+            "group:root"
+        )
+
+        self.products_group_id = make_uuid(
+            "group:products"
+        )
 
         # ----------------------------------------------------
-        # Build phases
+        # BUILD PHASES
         # ----------------------------------------------------
 
         self.sources_phase_id = make_uuid(
@@ -133,7 +161,7 @@ class ProjectData:
         )
 
         # ----------------------------------------------------
-        # Configuration lists
+        # CONFIGURATION LISTS
         # ----------------------------------------------------
 
         self.configuration_list_project_id = make_uuid(
@@ -145,7 +173,7 @@ class ProjectData:
         )
 
         # ----------------------------------------------------
-        # Project configurations
+        # PROJECT CONFIGURATIONS
         # ----------------------------------------------------
 
         self.debug_project_config_id = make_uuid(
@@ -157,7 +185,7 @@ class ProjectData:
         )
 
         # ----------------------------------------------------
-        # Target configurations
+        # TARGET CONFIGURATIONS
         # ----------------------------------------------------
 
         self.debug_target_config_id = make_uuid(
@@ -169,7 +197,7 @@ class ProjectData:
         )
 
         # ----------------------------------------------------
-        # Product
+        # PRODUCT
         # ----------------------------------------------------
 
         self.app_file_reference_id = make_uuid(
@@ -177,34 +205,30 @@ class ProjectData:
         )
 
         # ----------------------------------------------------
-        # Info.plist
+        # INFO.PLIST
         # ----------------------------------------------------
 
         self.info_plist_file_reference_id = make_uuid(
             "file:Info.plist"
         )
 
-        self.info_plist_build_file_id = make_uuid(
-            "build:Info.plist"
-        )
-
         # ----------------------------------------------------
-        # Groups
+        # GROUPS
         # ----------------------------------------------------
 
         self.root_group = None
 
         # IMPORTANT:
         #
-        # "" = actual SOURCE_ROOT
+        # "" = SOURCE_ROOT
         #
-        # NOT an App group.
+        # Burada ekstra "App" grubu oluşturulmaz.
         # ----------------------------------------------------
 
         self.group_map = {}
 
         # ----------------------------------------------------
-        # Files
+        # FILES
         # ----------------------------------------------------
 
         self.file_references = {}
@@ -224,19 +248,15 @@ class ProjectData:
 def create_group_tree(data):
 
     # --------------------------------------------------------
-    # ROOT GROUP
+    # ROOT
     #
-    # This represents SOURCE_ROOT itself.
+    # Root group SOURCE_ROOT'u temsil eder.
     #
-    # The project is:
+    # Dolayısıyla:
     #
-    # AsasecIl2cppDumper-Gui-App.xcodeproj
+    # path = None
     #
-    # beside:
-    #
-    # AsasecIl2cppDumper-Gui-App/
-    #
-    # Therefore root path MUST be None.
+    # olmalıdır.
     # --------------------------------------------------------
 
     root = Group(
@@ -279,24 +299,26 @@ def create_group_tree(data):
 
 def ensure_group(data, directory):
 
-    directory = normalize(directory)
+    directory = normalize(
+        directory
+    )
 
     # --------------------------------------------------------
-    # Root
+    # ROOT
     # --------------------------------------------------------
 
     if directory == "":
         return data.root_group
 
     # --------------------------------------------------------
-    # Existing group
+    # EXISTING GROUP
     # --------------------------------------------------------
 
     if directory in data.group_map:
         return data.group_map[directory]
 
     # --------------------------------------------------------
-    # Parent
+    # PARENT
     # --------------------------------------------------------
 
     parent_directory = normalize(
@@ -309,10 +331,12 @@ def ensure_group(data, directory):
     )
 
     # --------------------------------------------------------
-    # Current group
+    # CURRENT GROUP
     # --------------------------------------------------------
 
-    name = os.path.basename(directory)
+    name = os.path.basename(
+        directory
+    )
 
     group_id = make_uuid(
         "group:" + directory
@@ -335,6 +359,143 @@ def ensure_group(data, directory):
 
 
 # ============================================================
+# REQUIRED FILE CHECK
+# ============================================================
+
+def validate_required_files():
+
+    print()
+    print("============================================")
+    print(" ZORUNLU DOSYA KONTROLÜ")
+    print("============================================")
+
+    required_files = [
+        "Info.plist",
+        "LaunchScreen.storyboard"
+    ]
+
+    missing = 0
+
+    for relative_path in required_files:
+
+        full_path = os.path.join(
+            SOURCE_ROOT,
+            relative_path
+        )
+
+        if os.path.isfile(full_path):
+
+            print(
+                "  ✓",
+                relative_path
+            )
+
+        else:
+
+            print(
+                "  ✗ MISSING:",
+                relative_path
+            )
+
+            print(
+                "    Beklenen:",
+                os.path.abspath(full_path)
+            )
+
+            missing += 1
+
+    print()
+
+    if missing > 0:
+
+        print(
+            "ERROR:",
+            missing,
+            "zorunlu dosya bulunamadı."
+        )
+
+        return False
+
+    print(
+        "Tüm zorunlu dosyalar mevcut."
+    )
+
+    return True
+
+
+# ============================================================
+# LAUNCHSCREEN CHECK
+# ============================================================
+
+def validate_launch_screen_file():
+
+    launch_screen = os.path.join(
+        SOURCE_ROOT,
+        "LaunchScreen.storyboard"
+    )
+
+    if not os.path.isfile(
+        launch_screen
+    ):
+
+        return False
+
+    if os.path.getsize(
+        launch_screen
+    ) == 0:
+
+        print(
+            "ERROR: LaunchScreen.storyboard boş."
+        )
+
+        print(
+            os.path.abspath(
+                launch_screen
+            )
+        )
+
+        return False
+
+    return True
+
+
+# ============================================================
+# INFO PLIST CHECK
+# ============================================================
+
+def validate_info_plist_file():
+
+    info_plist = os.path.join(
+        SOURCE_ROOT,
+        "Info.plist"
+    )
+
+    if not os.path.isfile(
+        info_plist
+    ):
+
+        return False
+
+    if os.path.getsize(
+        info_plist
+    ) == 0:
+
+        print(
+            "ERROR: Info.plist boş."
+        )
+
+        print(
+            os.path.abspath(
+                info_plist
+            )
+        )
+
+        return False
+
+    return True
+
+
+# ============================================================
 # SCAN PROJECT FILES
 # ============================================================
 
@@ -342,7 +503,9 @@ def scan_project_files():
 
     files = []
 
-    if not os.path.isdir(SOURCE_ROOT):
+    if not os.path.isdir(
+        SOURCE_ROOT
+    ):
 
         print(
             "ERROR: SOURCE_ROOT bulunamadı:",
@@ -370,7 +533,7 @@ def scan_project_files():
     ):
 
         # ----------------------------------------------------
-        # Ignore directories
+        # IGNORE DIRECTORIES
         # ----------------------------------------------------
 
         dirs[:] = [
@@ -403,14 +566,14 @@ def scan_project_files():
                 continue
 
             # ------------------------------------------------
-            # Info.plist is handled separately.
+            # Info.plist ayrı tutuluyor.
             # ------------------------------------------------
 
             if relative_path == "Info.plist":
                 continue
 
             # ------------------------------------------------
-            # Never add generated project files.
+            # Generated Xcode project.
             # ------------------------------------------------
 
             if relative_path.endswith(
@@ -419,7 +582,10 @@ def scan_project_files():
                 continue
 
             # ------------------------------------------------
-            # xcassets contents are handled separately.
+            # Asset catalog contents.
+            #
+            # Assets.xcassets tek dosya/reference olarak
+            # ayrıca ekleniyor.
             # ------------------------------------------------
 
             if ".xcassets/" in relative_path:
@@ -446,7 +612,10 @@ def scan_asset_catalogs():
 
     assets = []
 
-    if not os.path.isdir(SOURCE_ROOT):
+    if not os.path.isdir(
+        SOURCE_ROOT
+    ):
+
         return assets
 
     ignored_directories = {
@@ -495,16 +664,115 @@ def scan_asset_catalogs():
             })
 
             # ------------------------------------------------
-            # Do not descend into asset catalog.
+            # xcassets içine girme.
             # ------------------------------------------------
 
-            dirs.remove(directory)
+            dirs.remove(
+                directory
+            )
 
     assets.sort(
         key=lambda item: item["relative_path"].lower()
     )
 
     return assets
+
+
+# ============================================================
+# ASSET CATALOG VALIDATION
+# ============================================================
+
+def validate_asset_catalogs(asset_catalogs):
+
+    print()
+    print("============================================")
+    print(" ASSET CATALOG KONTROLÜ")
+    print("============================================")
+
+    for item in asset_catalogs:
+
+        catalog = item["full_path"]
+
+        print(
+            "  ✓",
+            item["relative_path"]
+        )
+
+        # ----------------------------------------------------
+        # Empty AppIcon.appiconset detection
+        # ----------------------------------------------------
+
+        app_icon = os.path.join(
+            catalog,
+            "AppIcon.appiconset"
+        )
+
+        contents = os.path.join(
+            app_icon,
+            "Contents.json"
+        )
+
+        if os.path.isdir(
+            app_icon
+        ):
+
+            if os.path.isfile(
+                contents
+            ):
+
+                try:
+
+                    with open(
+                        contents,
+                        "r",
+                        encoding="utf-8"
+                    ) as f:
+
+                        content = f.read().strip()
+
+                    # ------------------------------------------------
+                    # Empty icon set.
+                    #
+                    # We DO NOT configure AppIcon in the generated
+                    # target, but actool may still inspect invalid
+                    # catalog data. Warn clearly.
+                    # ------------------------------------------------
+
+                    if '"images"' in content and '"images" : []' in content:
+
+                        print()
+                        print(
+                            "  WARNING: Boş AppIcon.appiconset bulundu:"
+                        )
+
+                        print(
+                            "   ",
+                            os.path.relpath(
+                                app_icon,
+                                SOURCE_ROOT
+                            )
+                        )
+
+                        print(
+                            "  AppIcon kullanılmayacağı için"
+                        )
+
+                        print(
+                            "  ASSETCATALOG_COMPILER_APPICON_NAME"
+                        )
+
+                        print(
+                            "  build setting'i eklenmeyecek."
+                        )
+
+                except Exception as error:
+
+                    print(
+                        "  WARNING: AppIcon Contents.json okunamadı:",
+                        error
+                    )
+
+    return True
 
 
 # ============================================================
@@ -524,7 +792,17 @@ def is_source_file(path):
         ".c",
         ".cc",
         ".cpp",
-        ".cxx",
+        ".cxx"
+    }
+
+
+def is_header_file(path):
+
+    extension = os.path.splitext(
+        path
+    )[1].lower()
+
+    return extension in {
         ".h",
         ".hpp"
     }
@@ -573,17 +851,20 @@ def add_file(data, item):
         return
 
     # --------------------------------------------------------
-    # Directory of file
+    # DIRECTORY
     #
     # Example:
     #
     # App/AppDelegate.swift
     #
     # group_path = App
+    # file_name = AppDelegate.swift
     # --------------------------------------------------------
 
     group_path = normalize(
-        os.path.dirname(relative_path)
+        os.path.dirname(
+            relative_path
+        )
     )
 
     group = ensure_group(
@@ -594,23 +875,19 @@ def add_file(data, item):
     # --------------------------------------------------------
     # IMPORTANT:
     #
-    # PBXFileReference path MUST be relative to its PBXGroup.
+    # PBXFileReference.path is relative to its PBXGroup.
     #
-    # Since the file is already inside:
+    # Correct:
     #
-    #     App
+    # App group:
+    #     path = AppDelegate.swift
     #
-    # path MUST be:
+    # Incorrect:
+    #     path = App/AppDelegate.swift
     #
-    #     AppDelegate.swift
+    # This prevents:
     #
-    # NOT:
-    #
-    #     App/AppDelegate.swift
-    #
-    # This fixes:
-    #
-    #     App/App/AppDelegate.swift
+    # App/App/AppDelegate.swift
     # --------------------------------------------------------
 
     file_name = item["filename"]
@@ -640,10 +917,12 @@ def add_file(data, item):
     )
 
     # --------------------------------------------------------
-    # Source
+    # SOURCE
     # --------------------------------------------------------
 
-    if is_source_file(relative_path):
+    if is_source_file(
+        relative_path
+    ):
 
         build_id = make_uuid(
             "build:" + relative_path
@@ -664,10 +943,25 @@ def add_file(data, item):
         )
 
     # --------------------------------------------------------
-    # Resource
+    # HEADER
+    #
+    # Header files remain visible in Xcode but are NOT
+    # compiled as source files.
     # --------------------------------------------------------
 
-    elif is_resource_file(relative_path):
+    elif is_header_file(
+        relative_path
+    ):
+
+        pass
+
+    # --------------------------------------------------------
+    # RESOURCE
+    # --------------------------------------------------------
+
+    elif is_resource_file(
+        relative_path
+    ):
 
         build_id = make_uuid(
             "build:" + relative_path
@@ -699,23 +993,15 @@ def add_asset_catalog(data, item):
     )
 
     group_path = normalize(
-        os.path.dirname(relative_path)
+        os.path.dirname(
+            relative_path
+        )
     )
 
     group = ensure_group(
         data,
         group_path
     )
-
-    # --------------------------------------------------------
-    # Same rule:
-    #
-    # Assets.xcassets inside root:
-    #
-    # path = Assets.xcassets
-    #
-    # Nested asset catalogs would use only basename.
-    # --------------------------------------------------------
 
     file_name = item["filename"]
 
@@ -764,15 +1050,7 @@ def add_asset_catalog(data, item):
 
 
 # ============================================================
-# INDENT
-# ============================================================
-
-def indent(level):
-    return "    " * level
-
-
-# ============================================================
-# FILE TYPE
+# FILE TYPE FOR PBX
 # ============================================================
 
 def file_type_for_path(path):
@@ -867,11 +1145,11 @@ def emit_group(
     level=2
 ):
 
-    # --------------------------------------------------------
-    # Children
-    # --------------------------------------------------------
-
     children = []
+
+    # --------------------------------------------------------
+    # CHILD GROUPS
+    # --------------------------------------------------------
 
     for child in group.children:
 
@@ -883,7 +1161,7 @@ def emit_group(
         )
 
     # --------------------------------------------------------
-    # Files
+    # FILES
     # --------------------------------------------------------
 
     for file_ref in group.files:
@@ -896,7 +1174,7 @@ def emit_group(
         )
 
     # --------------------------------------------------------
-    # Header
+    # GROUP HEADER
     # --------------------------------------------------------
 
     lines.append(
@@ -918,7 +1196,7 @@ def emit_group(
         )
 
     # --------------------------------------------------------
-    # Root group
+    # ROOT
     # --------------------------------------------------------
 
     if group.is_root:
@@ -929,12 +1207,14 @@ def emit_group(
             "sourceTree = \"<group>\"; "
             "}};".format(
                 indent(level),
-                xcode_quote(group.name)
+                xcode_quote(
+                    group.name
+                )
             )
         )
 
     # --------------------------------------------------------
-    # Normal group
+    # NORMAL GROUP
     # --------------------------------------------------------
 
     else:
@@ -946,17 +1226,22 @@ def emit_group(
             "sourceTree = \"<group>\"; "
             "}};".format(
                 indent(level),
-                xcode_quote(group.name),
-                xcode_quote(group.path or "")
+                xcode_quote(
+                    group.name
+                ),
+                xcode_quote(
+                    group.path or ""
+                )
             )
         )
 
     # --------------------------------------------------------
-    # Children recursively
+    # CHILDREN
     # --------------------------------------------------------
 
     for child in group.children:
 
+        # Products ayrı PBXGroup olarak emit ediliyor.
         if child.name == "Products":
             continue
 
@@ -992,7 +1277,7 @@ def emit_build_file(
 
 
 # ============================================================
-# EMIT BUILD PHASE
+# SOURCES PHASE
 # ============================================================
 
 def emit_sources_phase(
@@ -1001,7 +1286,8 @@ def emit_sources_phase(
 ):
 
     lines.append(
-        "\t\t{} /* Sources */ = {{isa = PBXSourcesBuildPhase; "
+        "\t\t{} /* Sources */ = "
+        "{{isa = PBXSourcesBuildPhase; "
         "buildActionMask = 2147483647; "
         "files = (\n".format(
             data.sources_phase_id
@@ -1027,6 +1313,10 @@ def emit_sources_phase(
         "};"
     )
 
+
+# ============================================================
+# FRAMEWORKS PHASE
+# ============================================================
 
 def emit_frameworks_phase(
     lines,
@@ -1062,6 +1352,10 @@ def emit_frameworks_phase(
     )
 
 
+# ============================================================
+# RESOURCES PHASE
+# ============================================================
+
 def emit_resources_phase(
     lines,
     data
@@ -1090,12 +1384,7 @@ def emit_resources_phase(
         )
 
     # --------------------------------------------------------
-    # Info.plist
-    #
-    # Keep it as a file reference but DO NOT put it into
-    # Resources in a normal iOS target.
-    #
-    # Therefore intentionally omitted here.
+    # Info.plist intentionally NOT added to Resources.
     # --------------------------------------------------------
 
     lines.append(
@@ -1152,7 +1441,7 @@ def emit_configuration_lists(
 
 
 # ============================================================
-# PROJECT CONFIGURATION
+# PROJECT DEBUG CONFIGURATION
 # ============================================================
 
 def emit_project_debug_configuration(
@@ -1191,6 +1480,10 @@ def emit_project_debug_configuration(
         )
     )
 
+
+# ============================================================
+# PROJECT RELEASE CONFIGURATION
+# ============================================================
 
 def emit_project_release_configuration(
     lines,
@@ -1236,15 +1529,11 @@ def emit_target_configuration(
 ):
 
     # --------------------------------------------------------
-    # IMPORTANT
+    # NO .format() HERE.
     #
-    # NO .format() is used here.
-    #
-    # This completely eliminates:
+    # This prevents:
     #
     # IndexError: Replacement index 3 out of range
-    #
-    # from the old generator.
     # --------------------------------------------------------
 
     lines.append(
@@ -1263,9 +1552,18 @@ def emit_target_configuration(
         "\t\t\t\tCLANG_ENABLE_MODULES = YES;"
     )
 
-    lines.append(
-        "\t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;"
-    )
+    # --------------------------------------------------------
+    # IMPORTANT:
+    #
+    # AppIcon build setting intentionally removed.
+    #
+    # There is no:
+    #
+    # ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+    #
+    # Therefore an empty AppIcon set is not referenced as the
+    # application's icon.
+    # --------------------------------------------------------
 
     lines.append(
         "\t\t\t\tCODE_SIGN_STYLE = Automatic;"
@@ -1283,16 +1581,44 @@ def emit_target_configuration(
         "\t\t\t\tGENERATE_INFOPLIST_FILE = NO;"
     )
 
+    # --------------------------------------------------------
+    # INFO.PLIST
+    #
+    # xcodebuild runs from the repository root.
+    #
+    # Therefore:
+    #
+    # AsasecIl2cppDumper-Gui-App/Info.plist
+    # --------------------------------------------------------
+
     lines.append(
         "\t\t\t\tINFOPLIST_FILE = \""
-        + xcode_quote(APP_DIRECTORY)
+        + xcode_quote(
+            APP_DIRECTORY
+        )
         + "/Info.plist\";"
     )
 
     lines.append(
         "\t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = \""
-        + xcode_quote(TARGET_NAME)
+        + xcode_quote(
+            TARGET_NAME
+        )
         + "\";"
+    )
+
+    # --------------------------------------------------------
+    # Launch Screen
+    #
+    # The physical file is:
+    #
+    # AsasecIl2cppDumper-Gui-App/LaunchScreen.storyboard
+    #
+    # Xcode resolves "LaunchScreen" to that storyboard.
+    # --------------------------------------------------------
+
+    lines.append(
+        "\t\t\t\tINFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;"
     )
 
     lines.append(
@@ -1360,13 +1686,33 @@ def generate_project(data):
     # HEADER
     # ========================================================
 
-    lines.append("// !$*UTF8*$!")
-    lines.append("{")
-    lines.append("\tarchiveVersion = 1;")
-    lines.append("\tclasses = {")
-    lines.append("\t};")
-    lines.append("\tobjectVersion = 56;")
-    lines.append("\tobjects = {")
+    lines.append(
+        "// !$*UTF8*$!"
+    )
+
+    lines.append(
+        "{"
+    )
+
+    lines.append(
+        "\tarchiveVersion = 1;"
+    )
+
+    lines.append(
+        "\tclasses = {"
+    )
+
+    lines.append(
+        "\t};"
+    )
+
+    lines.append(
+        "\tobjectVersion = 56;"
+    )
+
+    lines.append(
+        "\tobjects = {"
+    )
 
     # ========================================================
     # PBX BUILD FILES
@@ -1381,6 +1727,10 @@ def generate_project(data):
         if build_file in data.resource_build_files:
 
             phase_name = "Resources"
+
+        elif build_file in data.framework_build_files:
+
+            phase_name = "Frameworks"
 
         else:
 
@@ -1613,7 +1963,9 @@ def generate_project(data):
     # END OBJECTS
     # ========================================================
 
-    lines.append("\t};")
+    lines.append(
+        "\t};"
+    )
 
     lines.append(
         "\trootObject = {} /* Project object */;".format(
@@ -1621,7 +1973,9 @@ def generate_project(data):
         )
     )
 
-    lines.append("}")
+    lines.append(
+        "}"
+    )
 
     # ========================================================
     # WRITE PROJECT
@@ -1640,6 +1994,10 @@ def generate_project(data):
 
         project_file.write(
             "\n".join(lines)
+        )
+
+        project_file.write(
+            "\n"
         )
 
 
@@ -1663,7 +2021,7 @@ def validate_project_paths(data):
         group_path = ""
 
         # ----------------------------------------------------
-        # Find actual group path
+        # FIND ACTUAL GROUP PATH
         # ----------------------------------------------------
 
         for directory, group in data.group_map.items():
@@ -1671,12 +2029,19 @@ def validate_project_paths(data):
             if group.id == file_ref["group"]:
 
                 group_path = directory
+
                 break
+
+        # ----------------------------------------------------
+        # CALCULATE EXPECTED PATH
+        # ----------------------------------------------------
 
         if group_path:
 
             expected = normalize(
-                group_path + "/" + file_ref["path"]
+                group_path
+                + "/"
+                + file_ref["path"]
             )
 
         else:
@@ -1685,18 +2050,27 @@ def validate_project_paths(data):
                 file_ref["path"]
             )
 
+        # ----------------------------------------------------
+        # COMPARE
+        # ----------------------------------------------------
+
         if expected != relative_path:
 
             problems += 1
 
             print(
-                "  ERROR:",
+                "  ✗ ERROR:",
                 relative_path
             )
 
             print(
                 "    PBX:",
                 expected
+            )
+
+            print(
+                "    REF:",
+                file_ref["path"]
             )
 
         else:
@@ -1722,6 +2096,157 @@ def validate_project_paths(data):
         )
 
     return problems
+
+
+# ============================================================
+# VALIDATE LAUNCHSCREEN PBX ENTRY
+# ============================================================
+
+def validate_launch_screen_pbx(data):
+
+    print()
+    print("============================================")
+    print(" LAUNCHSCREEN PBX KONTROLÜ")
+    print("============================================")
+
+    relative_path = "LaunchScreen.storyboard"
+
+    file_ref = data.file_references.get(
+        relative_path
+    )
+
+    if file_ref is None:
+
+        print(
+            "  ✗ LaunchScreen.storyboard PBX içinde yok."
+        )
+
+        return 1
+
+    # --------------------------------------------------------
+    # It MUST be in root group.
+    # --------------------------------------------------------
+
+    if file_ref["group"] != data.root_group_id:
+
+        print(
+            "  ✗ LaunchScreen.storyboard root group içinde değil."
+        )
+
+        print(
+            "    Group ID:",
+            file_ref["group"]
+        )
+
+        return 1
+
+    # --------------------------------------------------------
+    # It MUST only contain basename.
+    # --------------------------------------------------------
+
+    if file_ref["path"] != "LaunchScreen.storyboard":
+
+        print(
+            "  ✗ LaunchScreen PBX path yanlış:",
+            file_ref["path"]
+        )
+
+        return 1
+
+    print(
+        "  ✓ LaunchScreen.storyboard"
+    )
+
+    print(
+        "    Group : ROOT"
+    )
+
+    print(
+        "    Path  : LaunchScreen.storyboard"
+    )
+
+    print(
+        "    Disk  :",
+        os.path.abspath(
+            os.path.join(
+                SOURCE_ROOT,
+                relative_path
+            )
+        )
+    )
+
+    return 0
+
+
+# ============================================================
+# PRINT FINAL TREE
+# ============================================================
+
+def print_source_tree():
+
+    print()
+    print("============================================")
+    print(" GERÇEK KAYNAK AĞACI")
+    print("============================================")
+
+    if not os.path.isdir(
+        SOURCE_ROOT
+    ):
+
+        print(
+            "SOURCE_ROOT bulunamadı."
+        )
+
+        return
+
+    for root, dirs, files in os.walk(
+        SOURCE_ROOT
+    ):
+
+        dirs[:] = sorted(
+            [
+                d
+                for d in dirs
+                if d not in {
+                    ".git",
+                    ".github",
+                    "build",
+                    "DerivedData",
+                    ".build",
+                    "__pycache__",
+                    ".xcodeproj"
+                }
+            ]
+        )
+
+        files = sorted(
+            files
+        )
+
+        relative_root = normalize(
+            os.path.relpath(
+                root,
+                SOURCE_ROOT
+            )
+        )
+
+        if relative_root == "":
+
+            prefix = ""
+
+        else:
+
+            prefix = relative_root + "/"
+
+        for filename in files:
+
+            if filename.startswith("."):
+                continue
+
+            print(
+                "  ",
+                prefix + filename
+            )
 
 
 # ============================================================
@@ -1777,6 +2302,45 @@ def main():
         return 1
 
     # ========================================================
+    # REQUIRED FILES
+    # ========================================================
+
+    if not validate_required_files():
+
+        print()
+        print(
+            "Generator durduruldu."
+        )
+
+        return 1
+
+    # ========================================================
+    # LAUNCHSCREEN
+    # ========================================================
+
+    if not validate_launch_screen_file():
+
+        print()
+        print(
+            "ERROR: LaunchScreen.storyboard geçersiz."
+        )
+
+        return 1
+
+    # ========================================================
+    # INFO.PLIST
+    # ========================================================
+
+    if not validate_info_plist_file():
+
+        print()
+        print(
+            "ERROR: Info.plist geçersiz."
+        )
+
+        return 1
+
+    # ========================================================
     # CLEAN OLD PROJECT
     # ========================================================
 
@@ -1812,10 +2376,13 @@ def main():
 
     project_files = scan_project_files()
 
+    print()
     print(
         "Kaynak / resource dosyaları:",
         len(project_files)
     )
+
+    launch_screen_found = False
 
     for item in project_files:
 
@@ -1824,10 +2391,41 @@ def main():
             item["relative_path"]
         )
 
+        if item["relative_path"] == "LaunchScreen.storyboard":
+
+            launch_screen_found = True
+
         add_file(
             data,
             item
         )
+
+    # ========================================================
+    # LAUNCHSCREEN MUST BE SCANNED
+    # ========================================================
+
+    if not launch_screen_found:
+
+        print()
+        print(
+            "ERROR: LaunchScreen.storyboard scan sonucunda yok."
+        )
+
+        print(
+            "Beklenen:"
+        )
+
+        print(
+            " ",
+            os.path.abspath(
+                os.path.join(
+                    SOURCE_ROOT,
+                    "LaunchScreen.storyboard"
+                )
+            )
+        )
+
+        return 1
 
     # ========================================================
     # SCAN ASSET CATALOGS
@@ -1835,6 +2433,7 @@ def main():
 
     asset_catalogs = scan_asset_catalogs()
 
+    print()
     print(
         "Asset catalogları:",
         len(asset_catalogs)
@@ -1853,29 +2452,78 @@ def main():
         )
 
     # ========================================================
-    # INFO
+    # VALIDATE ASSETS
     # ========================================================
 
-    print()
-
-    print(
-        "Xcode project oluşturuluyor..."
+    validate_asset_catalogs(
+        asset_catalogs
     )
+
+    # ========================================================
+    # VERIFY LAUNCHSCREEN PBX DATA BEFORE GENERATION
+    # ========================================================
+
+    launch_pbx_error = validate_launch_screen_pbx(
+        data
+    )
+
+    if launch_pbx_error != 0:
+
+        print()
+        print(
+            "ERROR: LaunchScreen PBX doğrulaması başarısız."
+        )
+
+        return 1
 
     # ========================================================
     # GENERATE
     # ========================================================
+
+    print()
+    print(
+        "Xcode project oluşturuluyor..."
+    )
 
     generate_project(
         data
     )
 
     # ========================================================
-    # VALIDATE
+    # VALIDATE PATHS
     # ========================================================
 
     path_errors = validate_project_paths(
         data
+    )
+
+    # ========================================================
+    # VERIFY GENERATED PROJECT FILE
+    # ========================================================
+
+    project_exists = os.path.isfile(
+        PROJECT_FILE
+    )
+
+    if not project_exists:
+
+        print()
+        print(
+            "ERROR: project.pbxproj oluşturulamadı."
+        )
+
+        return 1
+
+    print()
+    print("============================================")
+    print(" GENERATED PROJECT KONTROLÜ")
+    print("============================================")
+
+    print(
+        "  ✓",
+        os.path.abspath(
+            PROJECT_FILE
+        )
     )
 
     # ========================================================
@@ -1948,6 +2596,8 @@ def main():
             relative_path
         )
 
+    print_source_tree()
+
     print()
 
     print(
@@ -1960,7 +2610,11 @@ def main():
 
     print()
 
-    return 0 if path_errors == 0 else 1
+    if path_errors != 0:
+
+        return 1
+
+    return 0
 
 
 # ============================================================
