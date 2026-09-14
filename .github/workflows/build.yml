@@ -47,11 +47,14 @@ jobs:
       - name: Find APP
         run: |
           echo "Build klasörleri:"
-          find "$PWD/build" -maxdepth 6 -type d -name "*.app" -print
+          find "$PWD/build" -type d -name "*.app" -print
 
       - name: Package APP
         run: |
-          APP_PATH=$(find "$PWD/build" -type d -name "AsasecIl2cppDumper-Gui-App.app" | head -n 1)
+          APP_PATH=$(find "$PWD/build" \
+            -type d \
+            -name "AsasecIl2cppDumper-Gui-App.app" \
+            | head -n 1)
 
           if [ -z "$APP_PATH" ]; then
             echo "HATA: .app dosyası bulunamadı!"
@@ -61,23 +64,29 @@ jobs:
           echo "APP bulundu:"
           echo "$APP_PATH"
 
+          rm -rf "$PWD/output"
           mkdir -p "$PWD/output"
 
           cp -R "$APP_PATH" \
             "$PWD/output/AsasecIl2cppDumper.app"
 
-      - name: Zip APP
+      - name: Create ZIP
         run: |
           cd "$PWD/output"
 
           zip -r \
-            "AsasecIl2cppDumper.app.zip" \
+            "../AsasecIl2cppDumper.zip" \
             "AsasecIl2cppDumper.app"
 
-      - name: Upload APP
+      - name: Check ZIP Contents
+        run: |
+          echo "ZIP içeriği:"
+          unzip -l "$PWD/AsasecIl2cppDumper.zip"
+
+      - name: Upload APP ZIP
         uses: actions/upload-artifact@v4
 
         with:
-          name: AsasecIl2cppDumper-APP
-          path: output/AsasecIl2cppDumper.app.zip
+          name: AsasecIl2cppDumper
+          path: AsasecIl2cppDumper.zip
           if-no-files-found: error
