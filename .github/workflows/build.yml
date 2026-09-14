@@ -1,0 +1,43 @@
+name: Build Asasec Il2cppDumper
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches:
+      - main
+
+jobs:
+
+  build:
+
+    runs-on: macos-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode Version
+        run: |
+          xcodebuild -version
+
+      - name: Build iOS App
+        run: |
+          xcodebuild \
+            -project "AsasecIl2cppDumper-Gui-App.xcodeproj" \
+            -scheme "AsasecIl2cppDumper-Gui-App" \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Upload APP
+        uses: actions/upload-artifact@v4
+
+        with:
+          name: AsasecIl2cppDumper-Gui-App
+
+          path: |
+            build/Build/Products/Release-iphoneos/AsasecIl2cppDumper-Gui-App.app
