@@ -10,13 +10,8 @@ final class PathInputView: UIView {
     let textField = UITextField()
 
     private let iconView = UIImageView()
-
     private let titleLabel = UILabel()
-
-    private let browseButton = UIButton(
-        type: .system
-    )
-
+    private let browseButton = UIButton(type: .system)
     private let selectedIndicator = UIView()
 
     private let type: InputType
@@ -41,7 +36,11 @@ final class PathInputView: UIView {
         setup()
     }
 
+    // MARK: Setup
+
     private func setup() {
+
+        translatesAutoresizingMaskIntoConstraints = false
 
         backgroundColor =
             AppTheme.secondaryCard
@@ -56,22 +55,23 @@ final class PathInputView: UIView {
                 0.06
             ).cgColor
 
+        isUserInteractionEnabled = true
+
         setupIcon()
-
         setupTitle()
-
         setupTextField()
-
         setupBrowseButton()
-
         setupIndicator()
-
+        setupTapGesture()
         setupConstraints()
     }
 
+    // MARK: Icon
+
     private func setupIcon() {
 
-        iconView.translatesAutoresizingMaskIntoConstraints = false
+        iconView.translatesAutoresizingMaskIntoConstraints =
+            false
 
         switch type {
 
@@ -103,9 +103,12 @@ final class PathInputView: UIView {
         addSubview(iconView)
     }
 
+    // MARK: Title
+
     private func setupTitle() {
 
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.translatesAutoresizingMaskIntoConstraints =
+            false
 
         switch type {
 
@@ -128,9 +131,12 @@ final class PathInputView: UIView {
         addSubview(titleLabel)
     }
 
+    // MARK: Text Field
+
     private func setupTextField() {
 
-        textField.translatesAutoresizingMaskIntoConstraints = false
+        textField.translatesAutoresizingMaskIntoConstraints =
+            false
 
         switch type {
 
@@ -167,21 +173,38 @@ final class PathInputView: UIView {
             .no
 
         textField.clearButtonMode =
-            .whileEditing
+            .never
+
+        /*
+         IMPORTANT:
+
+         Bu alan sadece seçilen dosyanın
+         yolunu gösterecek.
+
+         Kullanıcı buraya yazamayacak
+         ve dokunma olayını kendisi
+         yakalamayacak.
+        */
+        textField.isUserInteractionEnabled =
+            false
 
         addSubview(textField)
     }
 
+    // MARK: Browse Button
+
     private func setupBrowseButton() {
 
-        browseButton.translatesAutoresizingMaskIntoConstraints = false
+        browseButton.translatesAutoresizingMaskIntoConstraints =
+            false
 
         browseButton.backgroundColor =
             AppTheme.accent.withAlphaComponent(
                 0.10
             )
 
-        browseButton.layer.cornerRadius = 11
+        browseButton.layer.cornerRadius =
+            11
 
         browseButton.setImage(
             AppTheme.symbol(
@@ -204,31 +227,57 @@ final class PathInputView: UIView {
         addSubview(browseButton)
     }
 
+    // MARK: Indicator
+
     private func setupIndicator() {
 
-        selectedIndicator.translatesAutoresizingMaskIntoConstraints = false
+        selectedIndicator.translatesAutoresizingMaskIntoConstraints =
+            false
 
         selectedIndicator.backgroundColor =
             AppTheme.success
 
-        selectedIndicator.layer.cornerRadius = 3
+        selectedIndicator.layer.cornerRadius =
+            3
 
-        selectedIndicator.alpha = 0
+        selectedIndicator.alpha =
+            0
 
         addSubview(selectedIndicator)
     }
+
+    // MARK: Gesture
+
+    private func setupTapGesture() {
+
+        let tap =
+            UITapGestureRecognizer(
+                target: self,
+                action: #selector(inputPressed)
+            )
+
+        tap.cancelsTouchesInView = true
+
+        addGestureRecognizer(tap)
+    }
+
+    // MARK: Constraints
 
     private func setupConstraints() {
 
         NSLayoutConstraint.activate([
 
+            // Icon
+
             iconView.leadingAnchor.constraint(
-                equalTo: leadingAnchor,
+                equalTo:
+                    leadingAnchor,
                 constant: 14
             ),
 
             iconView.centerYAnchor.constraint(
-                equalTo: centerYAnchor
+                equalTo:
+                    centerYAnchor
             ),
 
             iconView.widthAnchor.constraint(
@@ -239,13 +288,17 @@ final class PathInputView: UIView {
                 equalToConstant: 23
             ),
 
+            // Title
+
             titleLabel.leadingAnchor.constraint(
-                equalTo: iconView.trailingAnchor,
+                equalTo:
+                    iconView.trailingAnchor,
                 constant: 10
             ),
 
             titleLabel.topAnchor.constraint(
-                equalTo: topAnchor,
+                equalTo:
+                    topAnchor,
                 constant: 8
             ),
 
@@ -255,32 +308,42 @@ final class PathInputView: UIView {
                 constant: -10
             ),
 
+            // Text
+
             textField.leadingAnchor.constraint(
-                equalTo: titleLabel.leadingAnchor
+                equalTo:
+                    titleLabel.leadingAnchor
             ),
 
             textField.trailingAnchor.constraint(
-                equalTo: browseButton.leadingAnchor,
+                equalTo:
+                    browseButton.leadingAnchor,
                 constant: -10
             ),
 
             textField.topAnchor.constraint(
-                equalTo: titleLabel.bottomAnchor,
+                equalTo:
+                    titleLabel.bottomAnchor,
                 constant: 1
             ),
 
             textField.bottomAnchor.constraint(
-                equalTo: bottomAnchor,
+                equalTo:
+                    bottomAnchor,
                 constant: -7
             ),
 
+            // Browse
+
             browseButton.trailingAnchor.constraint(
-                equalTo: trailingAnchor,
+                equalTo:
+                    trailingAnchor,
                 constant: -10
             ),
 
             browseButton.centerYAnchor.constraint(
-                equalTo: centerYAnchor
+                equalTo:
+                    centerYAnchor
             ),
 
             browseButton.widthAnchor.constraint(
@@ -291,18 +354,23 @@ final class PathInputView: UIView {
                 equalToConstant: 44
             ),
 
+            // Selected indicator
+
             selectedIndicator.trailingAnchor.constraint(
-                equalTo: trailingAnchor,
+                equalTo:
+                    trailingAnchor,
                 constant: -5
             ),
 
             selectedIndicator.topAnchor.constraint(
-                equalTo: topAnchor,
+                equalTo:
+                    topAnchor,
                 constant: 5
             ),
 
             selectedIndicator.bottomAnchor.constraint(
-                equalTo: bottomAnchor,
+                equalTo:
+                    bottomAnchor,
                 constant: -5
             ),
 
@@ -311,6 +379,27 @@ final class PathInputView: UIView {
             )
         ])
     }
+
+    // MARK: Actions
+
+    @objc
+    private func browsePressed() {
+
+        openPicker()
+    }
+
+    @objc
+    private func inputPressed() {
+
+        openPicker()
+    }
+
+    private func openPicker() {
+
+        browseAction?()
+    }
+
+    // MARK: Selected
 
     func setSelected(
         _ selected: Bool
@@ -323,11 +412,5 @@ final class PathInputView: UIView {
             self.selectedIndicator.alpha =
                 selected ? 1.0 : 0.0
         }
-    }
-
-    @objc
-    private func browsePressed() {
-
-        browseAction?()
     }
 }
