@@ -22,52 +22,23 @@ PROJECT_FILE = os.path.join(
     "project.pbxproj"
 )
 
+# ------------------------------------------------------------
+# IMPORTANT
+#
+# SOURCE_ROOT is the real filesystem root containing:
+#
+# App/
+# Components/
+# Controllers/
+# Services/
+# Theme/
+# Info.plist
+#
+# Do NOT create another PBX group with path=APP_DIRECTORY
+# underneath this root.
+# ------------------------------------------------------------
+
 SOURCE_ROOT = APP_DIRECTORY
-
-
-# ============================================================
-# FILE TYPES
-# ============================================================
-
-SOURCE_TYPES = {
-    ".swift": "sourcecode.swift",
-
-    ".m": "sourcecode.c.objc",
-    ".mm": "sourcecode.cpp.objcpp",
-
-    ".c": "sourcecode.c.c",
-    ".cc": "sourcecode.cpp.cpp",
-    ".cpp": "sourcecode.cpp.cpp",
-}
-
-HEADER_TYPES = {
-    ".h": "sourcecode.c.h",
-    ".hh": "sourcecode.cpp.h",
-    ".hpp": "sourcecode.cpp.h",
-    ".hxx": "sourcecode.cpp.h",
-}
-
-RESOURCE_TYPES = {
-    ".storyboard": "file.storyboard",
-    ".xib": "file.xib",
-
-    ".json": "text.json",
-    ".strings": "text.plist.strings",
-
-    ".metal": "sourcecode.metal",
-}
-
-
-# ============================================================
-# UUID
-# ============================================================
-
-def make_uuid(value):
-
-    return uuid.uuid5(
-        uuid.NAMESPACE_URL,
-        "asasec-xcode-project:" + value
-    ).hex.upper()[:24]
 
 
 # ============================================================
@@ -75,200 +46,297 @@ def make_uuid(value):
 # ============================================================
 
 def normalize(path):
+    path = path.replace("\\", "/")
 
-    return path.replace(
-        os.sep,
-        "/"
-    )
+    while "//" in path:
+        path = path.replace("//", "/")
 
+    if path == ".":
+        return ""
 
-def extension(path):
+    if path.startswith("./"):
+        path = path[2:]
 
-    return os.path.splitext(
-        path
-    )[1].lower()
-
-
-def quote(value):
-
-    if value is None:
-        return '""'
-
-    if any(
-        character in value
-        for character in [
-            " ",
-            "\t",
-            "(",
-            ")",
-        ]
-    ):
-
-        return '"' + value + '"'
-
-    return value
+    return path.rstrip("/")
 
 
-def is_source(path):
-
-    return extension(path) in SOURCE_TYPES
-
-
-def is_header(path):
-
-    return extension(path) in HEADER_TYPES
+def make_uuid(seed):
+    return uuid.uuid5(
+        uuid.NAMESPACE_URL,
+        "asasec-xcode-generator:" + seed
+    ).hex[:24].upper()
 
 
-def is_resource(path):
-
-    return extension(path) in RESOURCE_TYPES
+def xcode_quote(value):
+    return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
 # ============================================================
-# GROUP
+# DATA CLASSES
 # ============================================================
 
 class Group:
-
     def __init__(
         self,
         group_id,
-        name=None,
+        name,
         path=None,
         parent=None,
         is_root=False
     ):
-
         self.id = group_id
         self.name = name
         self.path = path
         self.parent = parent
+        self.children = []
+        self.files = []
         self.is_root = is_root
 
-        self.children = []
 
-
-# ============================================================
-# PROJECT DATA
-# ============================================================
-
-class PBXData:
-
+class ProjectData:
     def __init__(self):
-
+        # ----------------------------------------------------
         # Main IDs
-        self.project_id = make_uuid(
-            "project:" + PROJECT_NAME
+        # ----------------------------------------------------
+
+        self.project_id = make_uuid("project")
+        self.target_id = make_uuid("target")
+
+        self.root_group_id = make_uuid("group:root")
+        self.products_group_id = make_uuid("group:products")
+
+        self.sources_phase_id = make_uuid("phase:sources")
+        self.resources_phase_id = make_uuid("phase:resources")
+        self.frameworks_phase_id = make_uuid("phase:frameworks")
+
+        self.sources_build_file_id = make_uuid("build:sources")
+        self.resources_build_file_id = make_uuid("build:resources")
+        self.frameworks_build_file_id = make_uuid("build:frameworks")
+
+        self.configuration_list_project_id = make_uuid(
+            "configuration-list:project"
         )
 
-        self.target_id = make_uuid(
-            "target:" + TARGET_NAME
-        )
-
-        # Groups
-        self.root_group_id = make_uuid(
-            "group:root"
-        )
-
-        self.app_group_id = make_uuid(
-            "group:" + APP_DIRECTORY
-        )
-
-        self.products_group_id = make_uuid(
-            "group:Products"
-        )
-
-        # Build phases
-        self.sources_phase_id = make_uuid(
-            "sources:" + TARGET_NAME
-        )
-
-        self.frameworks_phase_id = make_uuid(
-            "frameworks:" + TARGET_NAME
-        )
-
-        self.resources_phase_id = make_uuid(
-            "resources:" + TARGET_NAME
-        )
-
-        # Project configuration
-        self.project_config_list_id = make_uuid(
-            "project-config:" + PROJECT_NAME
+        self.configuration_list_target_id = make_uuid(
+            "configuration-list:target"
         )
 
         self.debug_project_config_id = make_uuid(
-            "project-debug:" + PROJECT_NAME
+            "project-config:debug"
         )
 
         self.release_project_config_id = make_uuid(
-            "project-release:" + PROJECT_NAME
-        )
-
-        # Target configuration
-        self.target_config_list_id = make_uuid(
-            "target-config:" + TARGET_NAME
+            "project-config:release"
         )
 
         self.debug_target_config_id = make_uuid(
-            "target-debug:" + TARGET_NAME
+            "target-config:debug"
         )
 
         self.release_target_config_id = make_uuid(
-            "target-release:" + TARGET_NAME
+            "target-config:release"
         )
 
-        # File references
-        self.file_references = []
+        self.app_file_reference_id = make_uuid(
+            "file:app-bundle"
+        )
 
-        # Build files
-        self.build_files = []
+        self.info_plist_file_reference_id = make_uuid(
+            "file:Info.plist"
+        )
 
-        # Source build files
-        self.source_build_files = []
+        self.info_plist_build_file_id = make_uuid(
+            "build:Info.plist"
+        )
 
-        # Resource build files
-        self.resource_build_files = []
+        # ----------------------------------------------------
+        # Group tree
+        # ----------------------------------------------------
 
-        # Groups
         self.root_group = None
 
+        # IMPORTANT:
+        #
+        # "" -> actual SOURCE_ROOT
+        #
+        # We do NOT map "" to an extra App group.
+        #
         self.group_map = {}
+
+        # ----------------------------------------------------
+        # File collections
+        # ----------------------------------------------------
+
+        self.file_references = {}
+        self.build_files = {}
+
+        self.source_build_files = []
+        self.resource_build_files = []
+        self.framework_build_files = []
+
+        self.all_files = []
 
 
 # ============================================================
-# SCAN
+# CREATE GROUP TREE
+# ============================================================
+
+def create_group_tree(data):
+
+    # --------------------------------------------------------
+    # ROOT PBX GROUP
+    #
+    # This group represents SOURCE_ROOT itself.
+    #
+    # Since the .xcodeproj sits next to SOURCE_ROOT, this
+    # group must NOT point to APP_DIRECTORY again.
+    #
+    # Therefore:
+    #
+    #     name = PROJECT_NAME
+    #     path = None
+    #
+    # Files are resolved relative to SOURCE_ROOT.
+    # --------------------------------------------------------
+
+    root = Group(
+        data.root_group_id,
+        name=PROJECT_NAME,
+        path=None,
+        parent=None,
+        is_root=True
+    )
+
+    # --------------------------------------------------------
+    # PRODUCTS
+    # --------------------------------------------------------
+
+    products_group = Group(
+        data.products_group_id,
+        name="Products",
+        path=None,
+        parent=root
+    )
+
+    root.children.append(products_group)
+
+    # --------------------------------------------------------
+    # ROOT GROUP MAPPING
+    #
+    # This is the critical fix.
+    #
+    # If relative_path is:
+    #
+    #     App/AppDelegate.swift
+    #
+    # ensure_group("App") creates:
+    #
+    #     ROOT
+    #       └── App
+    #            └── AppDelegate.swift
+    #
+    # NOT:
+    #
+    #     App
+    #       └── App
+    #            └── AppDelegate.swift
+    # --------------------------------------------------------
+
+    data.root_group = root
+    data.group_map[""] = root
+
+    return root
+
+
+# ============================================================
+# ENSURE GROUP
+# ============================================================
+
+def ensure_group(data, directory):
+
+    directory = normalize(directory)
+
+    if directory == "":
+        return data.root_group
+
+    if directory in data.group_map:
+        return data.group_map[directory]
+
+    parent_directory = normalize(
+        os.path.dirname(directory)
+    )
+
+    parent_group = ensure_group(
+        data,
+        parent_directory
+    )
+
+    name = os.path.basename(directory)
+
+    group_id = make_uuid(
+        "group:" + directory
+    )
+
+    group = Group(
+        group_id,
+        name=name,
+        path=name,
+        parent=parent_group
+    )
+
+    parent_group.children.append(group)
+
+    data.group_map[directory] = group
+
+    return group
+
+
+# ============================================================
+# SCAN PROJECT FILES
 # ============================================================
 
 def scan_project_files():
 
-    result = []
+    files = []
 
-    if not os.path.isdir(
-        SOURCE_ROOT
-    ):
-
-        raise RuntimeError(
-            "Kaynak klasörü bulunamadı: "
-            + SOURCE_ROOT
+    if not os.path.isdir(SOURCE_ROOT):
+        print(
+            "ERROR: SOURCE_ROOT bulunamadı:",
+            SOURCE_ROOT
         )
+        return files
 
-    for root, directories, filenames in os.walk(
+    ignored_directories = {
+        ".git",
+        ".github",
+        "build",
+        "DerivedData",
+        ".build",
+        "__pycache__"
+    }
+
+    ignored_files = {
+        ".DS_Store"
+    }
+
+    for root, dirs, filenames in os.walk(
         SOURCE_ROOT
     ):
 
-        # Asset catalogların içine girme.
-        directories[:] = [
-            directory
-            for directory in directories
-            if not directory.endswith(".xcassets")
-            and directory not in {
-                ".git",
-                "DerivedData",
-                "build",
-            }
+        # ----------------------------------------------------
+        # Ignore directories
+        # ----------------------------------------------------
+
+        dirs[:] = [
+            d
+            for d in dirs
+            if d not in ignored_directories
         ]
 
         for filename in filenames:
+
+            if filename in ignored_files:
+                continue
 
             full_path = os.path.join(
                 root,
@@ -282,43 +350,81 @@ def scan_project_files():
                 )
             )
 
-            # Info.plist kaynak olarak eklenmez.
-            if filename == "Info.plist":
+            # ------------------------------------------------
+            # Never add the generated pbxproj itself
+            # ------------------------------------------------
+
+            if relative_path.startswith(
+                PROJECT_DIRECTORY + "/"
+            ):
                 continue
 
-            # Asset catalog içerisindeki dosyalar
-            # ayrıca eklenmez.
+            # ------------------------------------------------
+            # Info.plist is handled separately.
+            # ------------------------------------------------
+
+            if relative_path == "Info.plist":
+                continue
+
+            # ------------------------------------------------
+            # Asset catalogs are resources but their contents
+            # should NOT be added individually.
+            # ------------------------------------------------
+
             if ".xcassets/" in relative_path:
                 continue
 
-            if (
-                is_source(relative_path)
-                or
-                is_header(relative_path)
-                or
-                is_resource(relative_path)
-            ):
+            # ------------------------------------------------
+            # Ignore hidden files
+            # ------------------------------------------------
 
-                result.append(
-                    relative_path
-                )
+            if filename.startswith("."):
+                continue
 
-    return sorted(result)
+            files.append({
+                "full_path": full_path,
+                "relative_path": relative_path,
+                "filename": filename
+            })
 
+    files.sort(
+        key=lambda item: item["relative_path"].lower()
+    )
+
+    return files
+
+
+# ============================================================
+# SCAN ASSET CATALOGS
+# ============================================================
 
 def scan_asset_catalogs():
 
-    result = []
+    assets = []
 
-    for root, directories, filenames in os.walk(
+    if not os.path.isdir(SOURCE_ROOT):
+        return assets
+
+    for root, dirs, filenames in os.walk(
         SOURCE_ROOT
     ):
 
-        for directory in list(directories):
+        dirs[:] = [
+            d
+            for d in dirs
+            if d not in {
+                ".git",
+                ".github",
+                "build",
+                "DerivedData",
+                ".build",
+                "__pycache__"
+            }
+        ]
 
-            if directory.endswith(
-                ".xcassets"
-            ):
+        for directory in list(dirs):
+
+            if directory.endswith(".xcassets"):
 
                 full_path = os.path.join(
                     root,
@@ -332,167 +438,103 @@ def scan_asset_catalogs():
                     )
                 )
 
-                result.append(
-                    relative_path
-                )
+                assets.append({
+                    "full_path": full_path,
+                    "relative_path": relative_path,
+                    "filename": directory
+                })
 
-                # İçine tekrar girme.
-                directories.remove(
-                    directory
-                )
+                # Do not descend into xcassets.
+                dirs.remove(directory)
 
-    return sorted(result)
+    assets.sort(
+        key=lambda item: item["relative_path"].lower()
+    )
+
+    return assets
 
 
 # ============================================================
-# GROUP TREE
+# FILE TYPE
 # ============================================================
 
-def create_group_tree(data):
+def is_source_file(path):
 
-    root = Group(
-        data.root_group_id,
-        is_root=True
-    )
+    extension = os.path.splitext(
+        path
+    )[1].lower()
 
-    app_group = Group(
-        data.app_group_id,
-        name=APP_DIRECTORY,
-        path=APP_DIRECTORY,
-        parent=root
-    )
-
-    products_group = Group(
-        data.products_group_id,
-        name="Products",
-        path=None,
-        parent=root
-    )
-
-    root.children.append(
-        app_group
-    )
-
-    root.children.append(
-        products_group
-    )
-
-    data.root_group = root
-
-    data.group_map[""] = app_group
-
-    return root
+    return extension in {
+        ".swift",
+        ".m",
+        ".mm",
+        ".c",
+        ".cc",
+        ".cpp",
+        ".cxx",
+        ".h",
+        ".hpp"
+    }
 
 
-def ensure_group(
-    data,
-    directory
-):
+def is_resource_file(path):
 
-    if directory in data.group_map:
+    extension = os.path.splitext(
+        path
+    )[1].lower()
 
-        return data.group_map[
-            directory
-        ]
-
-    parent_directory = os.path.dirname(
-        directory
-    )
-
-    parent_group = ensure_group(
-        data,
-        parent_directory
-    )
-
-    name = os.path.basename(
-        directory
-    )
-
-    group_id = make_uuid(
-        "group:" + directory
-    )
-
-    group = Group(
-        group_id,
-        name=name,
-        path=name,
-        parent=parent_group
-    )
-
-    parent_group.children.append(
-        group
-    )
-
-    data.group_map[
-        directory
-    ] = group
-
-    return group
+    return extension in {
+        ".storyboard",
+        ".xib",
+        ".json",
+        ".strings",
+        ".plist",
+        ".xcconfig",
+        ".metal",
+        ".mlmodel",
+        ".txt",
+        ".html",
+        ".css",
+        ".js",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".webp",
+        ".heic",
+        ".pdf"
+    }
 
 
 # ============================================================
 # ADD FILE
 # ============================================================
 
-def add_file(
-    data,
-    relative_path
-):
+def add_file(data, item):
 
-    filename = os.path.basename(
-        relative_path
+    relative_path = normalize(
+        item["relative_path"]
     )
 
-    ext = extension(
-        relative_path
-    )
-
-    if ext in SOURCE_TYPES:
-
-        file_type = SOURCE_TYPES[
-            ext
-        ]
-
-        is_build_source = True
-        is_build_resource = False
-
-    elif ext in HEADER_TYPES:
-
-        file_type = HEADER_TYPES[
-            ext
-        ]
-
-        is_build_source = False
-        is_build_resource = False
-
-    elif ext in RESOURCE_TYPES:
-
-        file_type = RESOURCE_TYPES[
-            ext
-        ]
-
-        is_build_source = False
-        is_build_resource = True
-
-    else:
-
+    if not relative_path:
         return
 
-    file_id = make_uuid(
-        "file:" + relative_path
-    )
+    # --------------------------------------------------------
+    # Group path
+    #
+    # Example:
+    #
+    # App/AppDelegate.swift
+    #
+    # dirname =>
+    #
+    # App
+    #
+    # ensure_group("App")
+    # --------------------------------------------------------
 
-    data.file_references.append(
-        {
-            "id": file_id,
-            "name": filename,
-            "path": relative_path,
-            "type": file_type,
-        }
-    )
-
-    group_path = os.path.dirname(
-        relative_path
+    group_path = normalize(
+        os.path.dirname(relative_path)
     )
 
     group = ensure_group(
@@ -500,50 +542,71 @@ def add_file(
         group_path
     )
 
-    group.children.append(
-        {
-            "type": "file",
-            "id": file_id,
-            "name": filename,
-        }
+    file_id = make_uuid(
+        "file:" + relative_path
     )
 
-    if is_build_source:
+    file_reference = {
+        "id": file_id,
+        "path": relative_path,
+        "name": item["filename"],
+        "group": group.id
+    }
+
+    data.file_references[
+        relative_path
+    ] = file_reference
+
+    data.all_files.append(
+        file_reference
+    )
+
+    group.files.append(
+        file_reference
+    )
+
+    # --------------------------------------------------------
+    # Determine build phase
+    # --------------------------------------------------------
+
+    if is_source_file(relative_path):
 
         build_id = make_uuid(
             "build:" + relative_path
         )
 
-        data.build_files.append(
-            {
-                "id": build_id,
-                "name": filename,
-                "file_id": file_id,
-                "phase": "Sources",
-            }
-        )
+        build_file = {
+            "id": build_id,
+            "file_ref": file_id,
+            "path": relative_path
+        }
+
+        data.build_files[
+            relative_path
+        ] = build_file
 
         data.source_build_files.append(
-            build_id
+            build_file
         )
 
-    elif is_build_resource:
+    elif is_resource_file(relative_path):
 
         build_id = make_uuid(
-            "build-resource:" + relative_path
+            "build:" + relative_path
         )
 
-        data.build_files.append(
-            {
-                "id": build_id,
-                "name": filename,
-                "file_id": file_id,
-                "phase": "Resources",
-            }
-        )
+        build_file = {
+            "id": build_id,
+            "file_ref": file_id,
+            "path": relative_path
+        }
+
+        data.build_files[
+            relative_path
+        ] = build_file
 
         data.resource_build_files.append(
-            build_id
+            build_file
         )
 
 
@@ -551,34 +614,14 @@ def add_file(
 # ADD ASSET CATALOG
 # ============================================================
 
-def add_asset_catalog(
-    data,
-    relative_path
-):
+def add_asset_catalog(data, item):
 
-    filename = os.path.basename(
-        relative_path
+    relative_path = normalize(
+        item["relative_path"]
     )
 
-    file_id = make_uuid(
-        "asset:" + relative_path
-    )
-
-    build_id = make_uuid(
-        "asset-build:" + relative_path
-    )
-
-    data.file_references.append(
-        {
-            "id": file_id,
-            "name": filename,
-            "path": relative_path,
-            "type": "folder.assetcatalog",
-        }
-    )
-
-    group_path = os.path.dirname(
-        relative_path
+    group_path = normalize(
+        os.path.dirname(relative_path)
     )
 
     group = ensure_group(
@@ -586,1242 +629,906 @@ def add_asset_catalog(
         group_path
     )
 
-    group.children.append(
-        {
-            "type": "file",
-            "id": file_id,
-            "name": filename,
-        }
+    file_id = make_uuid(
+        "file:" + relative_path
     )
 
-    data.build_files.append(
-        {
-            "id": build_id,
-            "name": filename,
-            "file_id": file_id,
-            "phase": "Resources",
-        }
+    file_reference = {
+        "id": file_id,
+        "path": relative_path,
+        "name": item["filename"],
+        "group": group.id,
+        "asset_catalog": True
+    }
+
+    data.file_references[
+        relative_path
+    ] = file_reference
+
+    data.all_files.append(
+        file_reference
     )
+
+    group.files.append(
+        file_reference
+    )
+
+    build_id = make_uuid(
+        "build:" + relative_path
+    )
+
+    build_file = {
+        "id": build_id,
+        "file_ref": file_id,
+        "path": relative_path
+    }
+
+    data.build_files[
+        relative_path
+    ] = build_file
 
     data.resource_build_files.append(
-        build_id
+        build_file
     )
 
 
 # ============================================================
-# GROUP OUTPUT
+# STRING HELPERS
 # ============================================================
 
-def group_sort_key(child):
+def indent(level):
+    return "    " * level
 
-    if isinstance(
-        child,
-        Group
-    ):
 
-        return (
-            0,
-            (child.name or "").lower()
+def emit_file_reference(
+    lines,
+    file_ref,
+    level=2
+):
+
+    file_id = file_ref["id"]
+    name = file_ref["name"]
+    path = file_ref["path"]
+
+    lines.append(
+        "{}{} /* {} */ = {{isa = PBXFileReference; "
+        "fileEncoding = 4; lastKnownFileType = {}; "
+        "path = \"{}\"; sourceTree = \"<group>\"; }};"
+        .format(
+            indent(level),
+            file_id,
+            name,
+            file_type_for_path(path),
+            xcode_quote(path)
+        )
+    )
+
+
+def file_type_for_path(path):
+
+    lower = path.lower()
+
+    if lower.endswith(".swift"):
+        return "sourcecode.swift"
+
+    if lower.endswith(".m"):
+        return "sourcecode.c.objc"
+
+    if lower.endswith(".mm"):
+        return "sourcecode.cpp.objcpp"
+
+    if lower.endswith(".c"):
+        return "sourcecode.c.c"
+
+    if lower.endswith(".cc"):
+        return "sourcecode.cpp.cpp"
+
+    if lower.endswith(".cpp"):
+        return "sourcecode.cpp.cpp"
+
+    if lower.endswith(".cxx"):
+        return "sourcecode.cpp.cpp"
+
+    if lower.endswith(".h"):
+        return "sourcecode.c.h"
+
+    if lower.endswith(".hpp"):
+        return "sourcecode.cpp.h"
+
+    if lower.endswith(".storyboard"):
+        return "file.storyboard"
+
+    if lower.endswith(".xib"):
+        return "file.xib"
+
+    if lower.endswith(".json"):
+        return "text.json"
+
+    if lower.endswith(".strings"):
+        return "text.plist.strings"
+
+    if lower.endswith(".plist"):
+        return "text.plist.xml"
+
+    if lower.endswith(".xcassets"):
+        return "folder.assetcatalog"
+
+    if lower.endswith(".metal"):
+        return "sourcecode.metal"
+
+    if lower.endswith(".png"):
+        return "image.png"
+
+    if lower.endswith(".jpg"):
+        return "image.jpeg"
+
+    if lower.endswith(".jpeg"):
+        return "image.jpeg"
+
+    if lower.endswith(".gif"):
+        return "image.gif"
+
+    if lower.endswith(".pdf"):
+        return "image.pdf"
+
+    if lower.endswith(".txt"):
+        return "text"
+
+    return "text"
+
+
+# ============================================================
+# EMIT GROUP
+# ============================================================
+
+def emit_group(
+    lines,
+    group,
+    level=2
+):
+
+    if group.is_root:
+
+        children = []
+
+        for child in group.children:
+            children.append(
+                "{} /* {} */".format(
+                    child.id,
+                    child.name
+                )
+            )
+
+        # Root files
+        for file_ref in group.files:
+            children.append(
+                "{} /* {} */".format(
+                    file_ref["id"],
+                    file_ref["name"]
+                )
+            )
+
+        lines.append(
+            "{}{} /* {} */ = {{isa = PBXGroup; "
+            "children = (\n"
+            .format(
+                indent(level),
+                group.id,
+                group.name
+            )
         )
 
-    return (
-        1,
-        (child["name"] or "").lower()
-    )
+        for child in children:
+            lines.append(
+                "{}{},\n".format(
+                    indent(level + 1),
+                    child
+                )
+            )
+
+        lines.append(
+            "{}); "
+            "name = \"{}\"; "
+            "sourceTree = \"<group>\"; }};"
+            "\n".format(
+                indent(level),
+                xcode_quote(group.name)
+            )
+        )
+
+    else:
+
+        children = []
+
+        for child in group.children:
+            children.append(
+                "{} /* {} */".format(
+                    child.id,
+                    child.name
+                )
+            )
+
+        for file_ref in group.files:
+            children.append(
+                "{} /* {} */".format(
+                    file_ref["id"],
+                    file_ref["name"]
+                )
+            )
+
+        lines.append(
+            "{}{} /* {} */ = {{isa = PBXGroup; "
+            "children = (\n"
+            .format(
+                indent(level),
+                group.id,
+                group.name
+            )
+        )
+
+        for child in children:
+            lines.append(
+                "{}{},\n".format(
+                    indent(level + 1),
+                    child
+                )
+            )
+
+        lines.append(
+            "{}); "
+            "name = \"{}\"; "
+            "path = \"{}\"; "
+            "sourceTree = \"<group>\"; }};"
+            "\n".format(
+                indent(level),
+                xcode_quote(group.name),
+                xcode_quote(group.path or "")
+            )
+        )
+
+    # --------------------------------------------------------
+    # Recursively emit child groups
+    # --------------------------------------------------------
+
+    for child in group.children:
+
+        if child.name == "Products":
+            continue
+
+        emit_group(
+            lines,
+            child,
+            level
+        )
 
 
-def generate_group(
-    group,
-    lines
+# ============================================================
+# PBX BUILD FILE
+# ============================================================
+
+def emit_build_file(
+    lines,
+    build_file,
+    file_reference
 ):
 
     lines.append(
-        "\t\t"
-        + group.id
-        + " = {"
+        "\t\t{} /* {} in Sources */ = "
+        "{{isa = PBXBuildFile; fileRef = {} /* {} */; }};"
+        .format(
+            build_file["id"],
+            file_reference["name"],
+            file_reference["id"],
+            file_reference["name"]
+        )
     )
+
+
+# ============================================================
+# BUILD PHASE
+# ============================================================
+
+def emit_build_phase(
+    lines,
+    phase_id,
+    name,
+    build_files
+):
 
     lines.append(
-        "\t\t\tisa = PBXGroup;"
+        "\t\t{} /* {} */ = {{isa = PBXSourcesBuildPhase; "
+        "buildActionMask = 2147483647; "
+        "files = (\n"
+        .format(
+            phase_id,
+            name
+        )
     )
 
-    lines.append(
-        "\t\t\tchildren = ("
-    )
+    for build_file in build_files:
 
-    children = sorted(
-        group.children,
-        key=group_sort_key
-    )
+        file_ref = data_global.file_references[
+            build_file["path"]
+        ]
 
-    for child in children:
-
-        if isinstance(
-            child,
-            Group
-        ):
-
-            comment = child.name or "Group"
-
-            lines.append(
-                "\t\t\t\t"
-                + child.id
-                + " /* "
-                + comment
-                + " */,"
+        lines.append(
+            "\t\t\t{} /* {} in {} */,\n".format(
+                build_file["id"],
+                file_ref["name"],
+                name
             )
-
-        else:
-
-            lines.append(
-                "\t\t\t\t"
-                + child["id"]
-                + " /* "
-                + child["name"]
-                + " */,"
-            )
+        )
 
     lines.append(
-        "\t\t\t);"
+        "\t\t); "
+        "runOnlyForDeploymentPostprocessing = 0; "
+        "};\n"
     )
 
-    # Root group kesinlikle path/name almaz.
-    if not group.is_root:
 
-        if group.name is not None:
+# ============================================================
+# CONFIGURATION
+# ============================================================
 
-            lines.append(
-                "\t\t\tname = "
-                + quote(group.name)
-                + ";"
-            )
-
-        if group.path is not None:
-
-            lines.append(
-                "\t\t\tpath = "
-                + quote(group.path)
-                + ";"
-            )
+def emit_configuration_lists(lines, data):
 
     lines.append(
-        "\t\t\tsourceTree = \"<group>\";"
-    )
-
-    lines.append(
-        "\t\t};"
+        "\t\t{} /* Build configuration list for PBXProject \"{}\" */ = {{"
+        "isa = XCConfigurationList; "
+        "buildConfigurations = (\n"
+        "\t\t\t{},\n"
+        "\t\t\t{},\n"
+        "\t\t); "
+        "defaultConfigurationIsVisible = 0; "
+        "defaultConfigurationName = Release; "
+        "}};"
+        .format(
+            data.configuration_list_project_id,
+            PROJECT_NAME,
+            data.debug_project_config_id,
+            data.release_project_config_id
+        )
     )
 
     lines.append("")
 
-    for child in children:
-
-        if isinstance(
-            child,
-            Group
-        ):
-
-            generate_group(
-                child,
-                lines
-            )
-
-
-# ============================================================
-# BUILD FILE NAME
-# ============================================================
-
-def build_file_name(
-    data,
-    build_id
-):
-
-    for item in data.build_files:
-
-        if item["id"] == build_id:
-
-            return item["name"]
-
-    return "Unknown"
+    lines.append(
+        "\t\t{} /* Build configuration list for PBXNativeTarget \"{}\" */ = {{"
+        "isa = XCConfigurationList; "
+        "buildConfigurations = (\n"
+        "\t\t\t{},\n"
+        "\t\t\t{},\n"
+        "\t\t); "
+        "defaultConfigurationIsVisible = 0; "
+        "defaultConfigurationName = Release; "
+        "}};"
+        .format(
+            data.configuration_list_target_id,
+            TARGET_NAME,
+            data.debug_target_config_id,
+            data.release_target_config_id
+        )
+    )
 
 
 # ============================================================
 # GENERATE PROJECT
 # ============================================================
 
-def generate_project():
-
-    data = PBXData()
-
-    create_group_tree(
-        data
-    )
-
-    files = scan_project_files()
-
-    assets = scan_asset_catalogs()
-
-    for relative_path in files:
-
-        add_file(
-            data,
-            relative_path
-        )
-
-    for relative_path in assets:
-
-        add_asset_catalog(
-            data,
-            relative_path
-        )
-
-    # ========================================================
-    # PRODUCT
-    # ========================================================
-
-    product_file_id = make_uuid(
-        "product:" + TARGET_NAME
-    )
-
-    data.file_references.append(
-        {
-            "id": product_file_id,
-            "name": TARGET_NAME + ".app",
-            "path": TARGET_NAME + ".app",
-            "type": "wrapper.application",
-            "product": True,
-        }
-    )
-
-    products_group = None
-
-    for child in data.root_group.children:
-
-        if (
-            isinstance(child, Group)
-            and
-            child.id == data.products_group_id
-        ):
-
-            products_group = child
-
-            break
-
-    products_group.children.append(
-        {
-            "type": "file",
-            "id": product_file_id,
-            "name": TARGET_NAME + ".app",
-        }
-    )
-
-    # ========================================================
-    # OUTPUT
-    # ========================================================
+def generate_project(data):
 
     lines = []
 
-    lines.append(
-        "// !$*UTF8*$!"
-    )
-
-    lines.append(
-        "{"
-    )
-
-    lines.append(
-        "\tarchiveVersion = 1;"
-    )
-
-    lines.append(
-        "\tclasses = {"
-    )
-
-    lines.append(
-        "\t};"
-    )
-
-    lines.append(
-        "\tobjectVersion = 56;"
-    )
-
-    lines.append(
-        "\tobjects = {"
-    )
-
-    lines.append("")
+    lines.append("// !$*UTF8*$!")
+    lines.append("{")
+    lines.append("\tarchiveVersion = 1;")
+    lines.append("\tclasses = {")
+    lines.append("\t};")
+    lines.append("\tobjectVersion = 56;")
+    lines.append("\tobjects = {")
 
     # ========================================================
-    # PBXBuildFile
+    # PBX BUILD FILES
     # ========================================================
 
-    lines.append(
-        "/* Begin PBXBuildFile section */"
-    )
+    for relative_path, build_file in data.build_files.items():
 
-    for item in data.build_files:
+        file_ref = data.file_references[
+            relative_path
+        ]
 
-        lines.append(
-            "\t\t"
-            + item["id"]
-            + " /* "
-            + item["name"]
-            + " in "
-            + item["phase"]
-            + " */ = {"
+        phase_name = (
+            "Resources"
+            if build_file in data.resource_build_files
+            else "Sources"
         )
 
         lines.append(
-            "\t\t\tisa = PBXBuildFile;"
+            "\t\t{} /* {} in {} */ = "
+            "{{isa = PBXBuildFile; fileRef = {} /* {} */; }};"
+            .format(
+                build_file["id"],
+                file_ref["name"],
+                phase_name,
+                file_ref["id"],
+                file_ref["name"]
+            )
         )
+
+    # ========================================================
+    # INFO.PLIST BUILD FILE
+    # ========================================================
+
+    lines.append(
+        "\t\t{} /* Info.plist in Resources */ = "
+        "{{isa = PBXBuildFile; fileRef = {} /* Info.plist */; }};"
+        .format(
+            data.info_plist_build_file_id,
+            data.info_plist_file_reference_id
+        )
+    )
+
+    # ========================================================
+    # PBX FILE REFERENCES
+    # ========================================================
+
+    for relative_path, file_ref in data.file_references.items():
 
         lines.append(
-            "\t\t\tfileRef = "
-            + item["file_id"]
-            + " /* "
-            + item["name"]
-            + " */;"
+            "\t\t{} /* {} */ = {{isa = PBXFileReference; "
+            "fileEncoding = 4; lastKnownFileType = {}; "
+            "path = \"{}\"; sourceTree = \"<group>\"; }};"
+            .format(
+                file_ref["id"],
+                file_ref["name"],
+                file_type_for_path(
+                    relative_path
+                ),
+                xcode_quote(relative_path)
+            )
         )
 
-        lines.append(
-            "\t\t};"
+    # --------------------------------------------------------
+    # Info.plist
+    # --------------------------------------------------------
+
+    lines.append(
+        "\t\t{} /* Info.plist */ = "
+        "{{isa = PBXFileReference; "
+        "fileEncoding = 4; "
+        "lastKnownFileType = text.plist.xml; "
+        "path = \"Info.plist\"; "
+        "sourceTree = \"<group>\"; }};"
+        .format(
+            data.info_plist_file_reference_id
         )
-
-    lines.append(
-        "/* End PBXBuildFile section */"
     )
 
-    lines.append("")
-
-    # ========================================================
-    # PBXFileReference
-    # ========================================================
+    # --------------------------------------------------------
+    # Product
+    # --------------------------------------------------------
 
     lines.append(
-        "/* Begin PBXFileReference section */"
-    )
-
-    for item in data.file_references:
-
-        lines.append(
-            "\t\t"
-            + item["id"]
-            + " /* "
-            + item["name"]
-            + " */ = {"
+        "\t\t{} /* {}.app */ = "
+        "{{isa = PBXFileReference; "
+        "explicitFileType = wrapper.application; "
+        "includeInIndex = 0; "
+        "path = \"{}.app\"; "
+        "sourceTree = BUILT_PRODUCTS_DIR; }};"
+        .format(
+            data.app_file_reference_id,
+            TARGET_NAME,
+            TARGET_NAME
         )
-
-        lines.append(
-            "\t\t\tisa = PBXFileReference;"
-        )
-
-        if item.get(
-            "product",
-            False
-        ):
-
-            lines.append(
-                "\t\t\texplicitFileType = wrapper.application;"
-            )
-
-            lines.append(
-                "\t\t\tincludeInIndex = 0;"
-            )
-
-            lines.append(
-                "\t\t\tpath = "
-                + quote(item["path"])
-                + ";"
-            )
-
-            lines.append(
-                "\t\t\tsourceTree = BUILT_PRODUCTS_DIR;"
-            )
-
-        else:
-
-            lines.append(
-                "\t\t\tlastKnownFileType = "
-                + item["type"]
-                + ";"
-            )
-
-            lines.append(
-                "\t\t\tpath = "
-                + quote(item["path"])
-                + ";"
-            )
-
-            lines.append(
-                "\t\t\tsourceTree = \"<group>\";"
-            )
-
-        lines.append(
-            "\t\t};"
-        )
-
-    lines.append(
-        "/* End PBXFileReference section */"
     )
-
-    lines.append("")
 
     # ========================================================
-    # PBXFrameworksBuildPhase
+    # PBX GROUPS
     # ========================================================
 
-    lines.append(
-        "/* Begin PBXFrameworksBuildPhase section */"
-    )
-
-    lines.append(
-        "\t\t"
-        + data.frameworks_phase_id
-        + " /* Frameworks */ = {"
-    )
-
-    lines.append(
-        "\t\t\tisa = PBXFrameworksBuildPhase;"
-    )
-
-    lines.append(
-        "\t\t\tbuildActionMask = 2147483647;"
-    )
-
-    lines.append(
-        "\t\t\tfiles = ("
-    )
-
-    lines.append(
-        "\t\t\t);"
-    )
-
-    lines.append(
-        "\t\t\trunOnlyForDeploymentPostprocessing = 0;"
-    )
-
-    lines.append(
-        "\t\t};"
-    )
-
-    lines.append(
-        "/* End PBXFrameworksBuildPhase section */"
-    )
-
-    lines.append("")
-
-    # ========================================================
-    # PBXGroup
-    # ========================================================
-
-    lines.append(
-        "/* Begin PBXGroup section */"
-    )
-
-    generate_group(
+    emit_group(
+        lines,
         data.root_group,
-        lines
+        level=2
     )
+
+    # --------------------------------------------------------
+    # Products group
+    # --------------------------------------------------------
 
     lines.append(
-        "/* End PBXGroup section */"
-    )
-
-    lines.append("")
-
-    # ========================================================
-    # PBXNativeTarget
-    # ========================================================
-
-    lines.append(
-        "/* Begin PBXNativeTarget section */"
-    )
-
-    lines.append(
-        "\t\t"
-        + data.target_id
-        + " /* "
-        + TARGET_NAME
-        + " */ = {"
-    )
-
-    lines.append(
-        "\t\t\tisa = PBXNativeTarget;"
-    )
-
-    lines.append(
-        "\t\t\tbuildConfigurationList = "
-        + data.target_config_list_id
-        + " /* Build configuration list for PBXNativeTarget \""
-        + TARGET_NAME
-        + "\" */;"
-    )
-
-    lines.append(
-        "\t\t\tbuildPhases = ("
-    )
-
-    lines.append(
-        "\t\t\t\t"
-        + data.sources_phase_id
-        + " /* Sources */,"
-    )
-
-    lines.append(
-        "\t\t\t\t"
-        + data.frameworks_phase_id
-        + " /* Frameworks */,"
-    )
-
-    lines.append(
-        "\t\t\t\t"
-        + data.resources_phase_id
-        + " /* Resources */,"
-    )
-
-    lines.append(
-        "\t\t\t);"
-    )
-
-    lines.append(
-        "\t\t\tbuildRules = ("
-    )
-
-    lines.append(
-        "\t\t\t);"
-    )
-
-    lines.append(
-        "\t\t\tdependencies = ("
-    )
-
-    lines.append(
-        "\t\t\t);"
-    )
-
-    lines.append(
-        "\t\t\tname = "
-        + quote(TARGET_NAME)
-        + ";"
-    )
-
-    lines.append(
-        "\t\t\tproductName = "
-        + quote(TARGET_NAME)
-        + ";"
-    )
-
-    lines.append(
-        "\t\t\tproductReference = "
-        + product_file_id
-        + " /* "
-        + TARGET_NAME
-        + ".app */;"
-    )
-
-    lines.append(
-        "\t\t\tproductType = \"com.apple.product-type.application\";"
-    )
-
-    lines.append(
-        "\t\t};"
-    )
-
-    lines.append(
-        "/* End PBXNativeTarget section */"
-    )
-
-    lines.append("")
-
-    # ========================================================
-    # PBXProject
-    # ========================================================
-
-    lines.append(
-        "/* Begin PBXProject section */"
-    )
-
-    lines.append(
-        "\t\t"
-        + data.project_id
-        + " /* Project object */ = {"
-    )
-
-    lines.append(
-        "\t\t\tisa = PBXProject;"
-    )
-
-    lines.append(
-        "\t\t\tattributes = {"
-    )
-
-    lines.append(
-        "\t\t\t\tLastUpgradeCheck = 1600;"
-    )
-
-    lines.append(
-        "\t\t\t\tTargetAttributes = {"
-    )
-
-    lines.append(
-        "\t\t\t\t\t"
-        + data.target_id
-        + " = {"
-    )
-
-    lines.append(
-        "\t\t\t\t\t\tCreatedOnToolsVersion = 16.0;"
-    )
-
-    lines.append(
-        "\t\t\t\t\t};"
-    )
-
-    lines.append(
-        "\t\t\t\t};"
-    )
-
-    lines.append(
-        "\t\t\t};"
-    )
-
-    lines.append(
-        "\t\t\tbuildConfigurationList = "
-        + data.project_config_list_id
-        + " /* Build configuration list for PBXProject \""
-        + PROJECT_NAME
-        + "\" */;"
-    )
-
-    lines.append(
-        "\t\t\tcompatibilityVersion = \"Xcode 14.0\";"
-    )
-
-    lines.append(
-        "\t\t\tdevelopmentRegion = en;"
-    )
-
-    lines.append(
-        "\t\t\thasScannedForEncodings = 0;"
-    )
-
-    lines.append(
-        "\t\t\tknownRegions = ("
-    )
-
-    lines.append(
-        "\t\t\t\ten,"
-    )
-
-    lines.append(
-        "\t\t\t\tBase,"
-    )
-
-    lines.append(
-        "\t\t\t);"
-    )
-
-    lines.append(
-        "\t\t\tmainGroup = "
-        + data.root_group_id
-        + ";"
-    )
-
-    lines.append(
-        "\t\t\tproductRefGroup = "
-        + data.products_group_id
-        + " /* Products */;"
-    )
-
-    lines.append(
-        "\t\t\tprojectDirPath = \"\";"
-    )
-
-    lines.append(
-        "\t\t\tprojectRoot = \"\";"
-    )
-
-    lines.append(
-        "\t\t\ttargets = ("
-    )
-
-    lines.append(
-        "\t\t\t\t"
-        + data.target_id
-        + " /* "
-        + TARGET_NAME
-        + " */,"
-    )
-
-    lines.append(
-        "\t\t\t);"
-    )
-
-    lines.append(
-        "\t\t};"
-    )
-
-    lines.append(
-        "/* End PBXProject section */"
-    )
-
-    lines.append("")
-
-    # ========================================================
-    # PBXResourcesBuildPhase
-    # ========================================================
-
-    lines.append(
-        "/* Begin PBXResourcesBuildPhase section */"
-    )
-
-    lines.append(
-        "\t\t"
-        + data.resources_phase_id
-        + " /* Resources */ = {"
-    )
-
-    lines.append(
-        "\t\t\tisa = PBXResourcesBuildPhase;"
-    )
-
-    lines.append(
-        "\t\t\tbuildActionMask = 2147483647;"
-    )
-
-    lines.append(
-        "\t\t\tfiles = ("
-    )
-
-    for build_id in data.resource_build_files:
-
-        filename = build_file_name(
-            data,
-            build_id
+        "\t\t{} /* Products */ = {{isa = PBXGroup; "
+        "children = (\n"
+        "\t\t\t{} /* {}.app */,\n"
+        "\t\t); "
+        "name = Products; "
+        "sourceTree = \"<group>\"; }};"
+        .format(
+            data.products_group_id,
+            data.app_file_reference_id,
+            TARGET_NAME
         )
+    )
+
+    # ========================================================
+    # PBX NATIVE TARGET
+    # ========================================================
+
+    lines.append(
+        "\t\t{} /* {} */ = {{isa = PBXNativeTarget; "
+        "buildConfigurationList = {}; "
+        "buildPhases = (\n"
+        "\t\t\t{},\n"
+        "\t\t\t{},\n"
+        "\t\t\t{},\n"
+        "\t\t); "
+        "buildRules = (); "
+        "dependencies = (); "
+        "name = \"{}\"; "
+        "productName = \"{}\"; "
+        "productReference = {} /* {}.app */; "
+        "productType = \"com.apple.product-type.application\"; "
+        "}};"
+        .format(
+            data.target_id,
+            TARGET_NAME,
+            data.configuration_list_target_id,
+            data.sources_phase_id,
+            data.frameworks_phase_id,
+            data.resources_phase_id,
+            TARGET_NAME,
+            TARGET_NAME,
+            data.app_file_reference_id,
+            TARGET_NAME
+        )
+    )
+
+    # ========================================================
+    # PBX PROJECT
+    # ========================================================
+
+    lines.append(
+        "\t\t{} /* Project object */ = {{isa = PBXProject; "
+        "attributes = {{\n"
+        "\t\t\tLastUpgradeCheck = 1600;\n"
+        "\t\t\tTargetAttributes = {{\n"
+        "\t\t\t\t{} = {{\n"
+        "\t\t\t\t\tCreatedOnToolsVersion = 16.0;\n"
+        "\t\t\t\t}};\n"
+        "\t\t\t}};\n"
+        "\t\t}}; "
+        "buildConfigurationList = {}; "
+        "compatibilityVersion = \"Xcode 14.0\"; "
+        "developmentRegion = en; "
+        "hasScannedForEncodings = 0; "
+        "knownRegions = (\n"
+        "\t\t\ten,\n"
+        "\t\t\tBase,\n"
+        "\t\t); "
+        "mainGroup = {} /* {} */; "
+        "productRefGroup = {} /* Products */; "
+        "projectDirPath = \"\"; "
+        "projectRoot = \"\"; "
+        "targets = (\n"
+        "\t\t\t{},\n"
+        "\t\t); "
+        "}};"
+        .format(
+            data.project_id,
+            data.target_id,
+            data.configuration_list_project_id,
+            data.root_group_id,
+            PROJECT_NAME,
+            data.products_group_id,
+            data.target_id
+        )
+    )
+
+    # ========================================================
+    # BUILD PHASES
+    # ========================================================
+
+    # Sources
+    lines.append(
+        "\t\t{} /* Sources */ = {{isa = PBXSourcesBuildPhase; "
+        "buildActionMask = 2147483647; "
+        "files = (\n"
+        .format(
+            data.sources_phase_id
+        )
+    )
+
+    for build_file in data.source_build_files:
+
+        file_ref = data.file_references[
+            build_file["path"]
+        ]
 
         lines.append(
-            "\t\t\t\t"
-            + build_id
-            + " /* "
-            + filename
-            + " in Resources */,"
+            "\t\t\t{} /* {} in Sources */,\n".format(
+                build_file["id"],
+                file_ref["name"]
+            )
         )
 
     lines.append(
-        "\t\t\t);"
+        "\t\t); "
+        "runOnlyForDeploymentPostprocessing = 0; "
+        "}};"
     )
 
+    # Frameworks
     lines.append(
-        "\t\t\trunOnlyForDeploymentPostprocessing = 0;"
-    )
-
-    lines.append(
-        "\t\t};"
-    )
-
-    lines.append(
-        "/* End PBXResourcesBuildPhase section */"
-    )
-
-    lines.append("")
-
-    # ========================================================
-    # PBXSourcesBuildPhase
-    # ========================================================
-
-    lines.append(
-        "/* Begin PBXSourcesBuildPhase section */"
-    )
-
-    lines.append(
-        "\t\t"
-        + data.sources_phase_id
-        + " /* Sources */ = {"
-    )
-
-    lines.append(
-        "\t\t\tisa = PBXSourcesBuildPhase;"
-    )
-
-    lines.append(
-        "\t\t\tbuildActionMask = 2147483647;"
-    )
-
-    lines.append(
-        "\t\t\tfiles = ("
-    )
-
-    for build_id in data.source_build_files:
-
-        filename = build_file_name(
-            data,
-            build_id
+        "\t\t{} /* Frameworks */ = {{isa = PBXFrameworksBuildPhase; "
+        "buildActionMask = 2147483647; "
+        "files = (\n"
+        .format(
+            data.frameworks_phase_id
         )
+    )
+
+    for build_file in data.framework_build_files:
+
+        file_ref = data.file_references[
+            build_file["path"]
+        ]
 
         lines.append(
-            "\t\t\t\t"
-            + build_id
-            + " /* "
-            + filename
-            + " in Sources */,"
+            "\t\t\t{} /* {} in Frameworks */,\n".format(
+                build_file["id"],
+                file_ref["name"]
+            )
         )
 
     lines.append(
-        "\t\t\t);"
+        "\t\t); "
+        "runOnlyForDeploymentPostprocessing = 0; "
+        "}};"
+    )
+
+    # Resources
+    lines.append(
+        "\t\t{} /* Resources */ = {{isa = PBXResourcesBuildPhase; "
+        "buildActionMask = 2147483647; "
+        "files = (\n"
+        .format(
+            data.resources_phase_id
+        )
+    )
+
+    for build_file in data.resource_build_files:
+
+        file_ref = data.file_references[
+            build_file["path"]
+        ]
+
+        lines.append(
+            "\t\t\t{} /* {} in Resources */,\n".format(
+                build_file["id"],
+                file_ref["name"]
+            )
+        )
+
+    # Info.plist
+    lines.append(
+        "\t\t\t{} /* Info.plist in Resources */,\n"
+        .format(
+            data.info_plist_build_file_id
+        )
     )
 
     lines.append(
-        "\t\t\trunOnlyForDeploymentPostprocessing = 0;"
+        "\t\t); "
+        "runOnlyForDeploymentPostprocessing = 0; "
+        "}};"
     )
-
-    lines.append(
-        "\t\t};"
-    )
-
-    lines.append(
-        "/* End PBXSourcesBuildPhase section */"
-    )
-
-    lines.append("")
 
     # ========================================================
-    # XCBuildConfiguration
+    # CONFIGURATIONS
     # ========================================================
 
-    lines.append(
-        "/* Begin XCBuildConfiguration section */"
-    )
-
     # --------------------------------------------------------
-    # Project Debug
+    # PROJECT DEBUG
     # --------------------------------------------------------
 
     lines.append(
-        "\t\t"
-        + data.debug_project_config_id
-        + " /* Debug */ = {"
-    )
-
-    lines.append(
-        "\t\t\tisa = XCBuildConfiguration;"
-    )
-
-    lines.append(
-        "\t\t\tbuildSettings = {"
-    )
-
-    lines.append(
-        "\t\t\t\tALWAYS_SEARCH_USER_PATHS = NO;"
-    )
-
-    lines.append(
-        "\t\t\t\tCLANG_ENABLE_MODULES = YES;"
-    )
-
-    lines.append(
-        "\t\t\t\tCLANG_ENABLE_OBJC_ARC = YES;"
-    )
-
-    lines.append(
-        "\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 13.0;"
-    )
-
-    lines.append(
-        "\t\t\t\tSDKROOT = iphoneos;"
-    )
-
-    lines.append(
-        "\t\t\t\tSWIFT_VERSION = 5.0;"
-    )
-
-    lines.append(
-        "\t\t\t\tTARGETED_DEVICE_FAMILY = \"1,2\";"
-    )
-
-    lines.append(
-        "\t\t\t};"
-    )
-
-    lines.append(
-        "\t\t\tname = Debug;"
-    )
-
-    lines.append(
-        "\t\t};"
+        "\t\t{} /* Debug */ = {{isa = XCBuildConfiguration; "
+        "buildSettings = {{\n"
+        "\t\t\t\tALWAYS_SEARCH_USER_PATHS = NO;\n"
+        "\t\t\t\tCLANG_ENABLE_MODULES = YES;\n"
+        "\t\t\t\tCLANG_ENABLE_OBJC_ARC = YES;\n"
+        "\t\t\t\tCOPY_PHASE_STRIP = NO;\n"
+        "\t\t\t\tDEBUG_INFORMATION_FORMAT = dwarf;\n"
+        "\t\t\t\tENABLE_STRICT_OBJC_MSGSEND = YES;\n"
+        "\t\t\t\tGCC_C_LANGUAGE_STANDARD = gnu17;\n"
+        "\t\t\t\tGCC_DYNAMIC_NO_PIC = NO;\n"
+        "\t\t\t\tGCC_NO_COMMON_BLOCKS = YES;\n"
+        "\t\t\t\tGCC_OPTIMIZATION_LEVEL = 0;\n"
+        "\t\t\t\tGCC_WARN_64_TO_32_BIT_CONVERSION = YES;\n"
+        "\t\t\t\tGCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;\n"
+        "\t\t\t\tGCC_WARN_UNDECLARED_SELECTOR = YES;\n"
+        "\t\t\t\tGCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;\n"
+        "\t\t\t\tGCC_WARN_UNUSED_FUNCTION = YES;\n"
+        "\t\t\t\tGCC_WARN_UNUSED_VARIABLE = YES;\n"
+        "\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 13.0;\n"
+        "\t\t\t\tMTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;\n"
+        "\t\t\t\tONLY_ACTIVE_ARCH = YES;\n"
+        "\t\t\t\tSDKROOT = iphoneos;\n"
+        "\t\t\t\tSWIFT_OPTIMIZATION_LEVEL = \"-Onone\";\n"
+        "\t\t\t}}; "
+        "name = Debug; "
+        "}};"
+        .format(
+            data.debug_project_config_id
+        )
     )
 
     # --------------------------------------------------------
-    # Project Release
+    # PROJECT RELEASE
     # --------------------------------------------------------
 
     lines.append(
-        "\t\t"
-        + data.release_project_config_id
-        + " /* Release */ = {"
-    )
-
-    lines.append(
-        "\t\t\tisa = XCBuildConfiguration;"
-    )
-
-    lines.append(
-        "\t\t\tbuildSettings = {"
-    )
-
-    lines.append(
-        "\t\t\t\tALWAYS_SEARCH_USER_PATHS = NO;"
-    )
-
-    lines.append(
-        "\t\t\t\tCLANG_ENABLE_MODULES = YES;"
-    )
-
-    lines.append(
-        "\t\t\t\tCLANG_ENABLE_OBJC_ARC = YES;"
-    )
-
-    lines.append(
-        "\t\t\t\tCLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;"
-    )
-
-    lines.append(
-        "\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 13.0;"
-    )
-
-    lines.append(
-        "\t\t\t\tSDKROOT = iphoneos;"
-    )
-
-    lines.append(
-        "\t\t\t\tSWIFT_COMPILATION_MODE = wholemodule;"
-    )
-
-    lines.append(
-        "\t\t\t\tSWIFT_OPTIMIZATION_LEVEL = \"-O\";"
-    )
-
-    lines.append(
-        "\t\t\t\tSWIFT_VERSION = 5.0;"
-    )
-
-    lines.append(
-        "\t\t\t\tTARGETED_DEVICE_FAMILY = \"1,2\";"
-    )
-
-    lines.append(
-        "\t\t\t};"
-    )
-
-    lines.append(
-        "\t\t\tname = Release;"
-    )
-
-    lines.append(
-        "\t\t};"
+        "\t\t{} /* Release */ = {{isa = XCBuildConfiguration; "
+        "buildSettings = {{\n"
+        "\t\t\t\tALWAYS_SEARCH_USER_PATHS = NO;\n"
+        "\t\t\t\tCLANG_ENABLE_MODULES = YES;\n"
+        "\t\t\t\tCLANG_ENABLE_OBJC_ARC = YES;\n"
+        "\t\t\t\tCOPY_PHASE_STRIP = NO;\n"
+        "\t\t\t\tDEBUG_INFORMATION_FORMAT = \"dwarf-with-dsym\";\n"
+        "\t\t\t\tENABLE_NS_ASSERTIONS = NO;\n"
+        "\t\t\t\tGCC_C_LANGUAGE_STANDARD = gnu17;\n"
+        "\t\t\t\tGCC_NO_COMMON_BLOCKS = YES;\n"
+        "\t\t\t\tGCC_WARN_64_TO_32_BIT_CONVERSION = YES;\n"
+        "\t\t\t\tGCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;\n"
+        "\t\t\t\tGCC_WARN_UNDECLARED_SELECTOR = YES;\n"
+        "\t\t\t\tGCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;\n"
+        "\t\t\t\tGCC_WARN_UNUSED_FUNCTION = YES;\n"
+        "\t\t\t\tGCC_WARN_UNUSED_VARIABLE = YES;\n"
+        "\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 13.0;\n"
+        "\t\t\t\tSDKROOT = iphoneos;\n"
+        "\t\t\t\tSWIFT_OPTIMIZATION_LEVEL = \"-O\";\n"
+        "\t\t\t}}; "
+        "name = Release; "
+        "}};"
+        .format(
+            data.release_project_config_id
+        )
     )
 
     # --------------------------------------------------------
-    # Target Debug
+    # TARGET DEBUG
     # --------------------------------------------------------
 
     lines.append(
-        "\t\t"
-        + data.debug_target_config_id
-        + " /* Debug */ = {"
-    )
-
-    lines.append(
-        "\t\t\tisa = XCBuildConfiguration;"
-    )
-
-    lines.append(
-        "\t\t\tbuildSettings = {"
-    )
-
-    lines.append(
-        "\t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;"
-    )
-
-    lines.append(
-        "\t\t\t\tCODE_SIGNING_ALLOWED = NO;"
-    )
-
-    lines.append(
-        "\t\t\t\tCODE_SIGNING_REQUIRED = NO;"
-    )
-
-    lines.append(
-        "\t\t\t\tCODE_SIGN_IDENTITY = \"\";"
-    )
-
-    lines.append(
-        "\t\t\t\tDEVELOPMENT_TEAM = \"\";"
-    )
-
-    lines.append(
-        "\t\t\t\tGENERATE_INFOPLIST_FILE = NO;"
-    )
-
-    lines.append(
-        "\t\t\t\tINFOPLIST_FILE = \""
-        + APP_DIRECTORY
-        + "/Info.plist\";"
-    )
-
-    lines.append(
-        "\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 13.0;"
-    )
-
-    lines.append(
-        "\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = \""
-        + BUNDLE_IDENTIFIER
-        + "\";"
-    )
-
-    lines.append(
-        "\t\t\t\tPRODUCT_NAME = \""
-        + TARGET_NAME
-        + "\";"
-    )
-
-    lines.append(
-        "\t\t\t\tSWIFT_VERSION = 5.0;"
-    )
-
-    lines.append(
-        "\t\t\t\tTARGETED_DEVICE_FAMILY = \"1,2\";"
-    )
-
-    lines.append(
-        "\t\t\t};"
-    )
-
-    lines.append(
-        "\t\t\tname = Debug;"
-    )
-
-    lines.append(
-        "\t\t};"
+        "\t\t{} /* Debug */ = {{isa = XCBuildConfiguration; "
+        "buildSettings = {{\n"
+        "\t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;\n"
+        "\t\t\t\tCLANG_ENABLE_MODULES = YES;\n"
+        "\t\t\t\tCODE_SIGN_STYLE = Automatic;\n"
+        "\t\t\t\tCURRENT_PROJECT_VERSION = 1;\n"
+        "\t\t\t\tDEVELOPMENT_TEAM = \"\";\n"
+        "\t\t\t\tGENERATE_INFOPLIST_FILE = NO;\n"
+        "\t\t\t\tINFOPLIST_FILE = \"{}/Info.plist\";\n"
+        "\t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = \"{}\";\n"
+        "\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 13.0;\n"
+        "\t\t\t\tLD_RUNPATH_SEARCH_PATHS = (\n"
+        "\t\t\t\t\t\"$(inherited)\",\n"
+        "\t\t\t\t\t\"@executable_path/Frameworks\",\n"
+        "\t\t\t\t);\n"
+        "\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = {};\n"
+        "\t\t\t\tPRODUCT_NAME = \"$(TARGET_NAME)\";\n"
+        "\t\t\t\tSWIFT_VERSION = 5.0;\n"
+        "\t\t\t\tTARGETED_DEVICE_FAMILY = \"1,2\";\n"
+        "\t\t\t}}; "
+        "name = Debug; "
+        "}};"
+        .format(
+            APP_DIRECTORY,
+            TARGET_NAME,
+            BUNDLE_IDENTIFIER
+        )
     )
 
     # --------------------------------------------------------
-    # Target Release
+    # TARGET RELEASE
     # --------------------------------------------------------
 
     lines.append(
-        "\t\t"
-        + data.release_target_config_id
-        + " /* Release */ = {"
+        "\t\t{} /* Release */ = {{isa = XCBuildConfiguration; "
+        "buildSettings = {{\n"
+        "\t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;\n"
+        "\t\t\t\tCLANG_ENABLE_MODULES = YES;\n"
+        "\t\t\t\tCODE_SIGN_STYLE = Automatic;\n"
+        "\t\t\t\tCURRENT_PROJECT_VERSION = 1;\n"
+        "\t\t\t\tDEVELOPMENT_TEAM = \"\";\n"
+        "\t\t\t\tGENERATE_INFOPLIST_FILE = NO;\n"
+        "\t\t\t\tINFOPLIST_FILE = \"{}/Info.plist\";\n"
+        "\t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = \"{}\";\n"
+        "\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 13.0;\n"
+        "\t\t\t\tLD_RUNPATH_SEARCH_PATHS = (\n"
+        "\t\t\t\t\t\"$(inherited)\",\n"
+        "\t\t\t\t\t\"@executable_path/Frameworks\",\n"
+        "\t\t\t\t);\n"
+        "\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = {};\n"
+        "\t\t\t\tPRODUCT_NAME = \"$(TARGET_NAME)\";\n"
+        "\t\t\t\tSWIFT_VERSION = 5.0;\n"
+        "\t\t\t\tTARGETED_DEVICE_FAMILY = \"1,2\";\n"
+        "\t\t\t}}; "
+        "name = Release; "
+        "}};"
+        .format(
+            APP_DIRECTORY,
+            TARGET_NAME,
+            BUNDLE_IDENTIFIER
+        )
     )
-
-    lines.append(
-        "\t\t\tisa = XCBuildConfiguration;"
-    )
-
-    lines.append(
-        "\t\t\tbuildSettings = {"
-    )
-
-    lines.append(
-        "\t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;"
-    )
-
-    lines.append(
-        "\t\t\t\tCODE_SIGNING_ALLOWED = NO;"
-    )
-
-    lines.append(
-        "\t\t\t\tCODE_SIGNING_REQUIRED = NO;"
-    )
-
-    lines.append(
-        "\t\t\t\tCODE_SIGN_IDENTITY = \"\";"
-    )
-
-    lines.append(
-        "\t\t\t\tDEVELOPMENT_TEAM = \"\";"
-    )
-
-    lines.append(
-        "\t\t\t\tDEVELOPMENT_TEAM = \"\";"
-    )
-
-    lines.append(
-        "\t\t\t\tGENERATE_INFOPLIST_FILE = NO;"
-    )
-
-    lines.append(
-        "\t\t\t\tINFOPLIST_FILE = \""
-        + APP_DIRECTORY
-        + "/Info.plist\";"
-    )
-
-    lines.append(
-        "\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 13.0;"
-    )
-
-    lines.append(
-        "\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = \""
-        + BUNDLE_IDENTIFIER
-        + "\";"
-    )
-
-    lines.append(
-        "\t\t\t\tPRODUCT_NAME = \""
-        + TARGET_NAME
-        + "\";"
-    )
-
-    lines.append(
-        "\t\t\t\tSWIFT_VERSION = 5.0;"
-    )
-
-    lines.append(
-        "\t\t\t\tTARGETED_DEVICE_FAMILY = \"1,2\";"
-    )
-
-    lines.append(
-        "\t\t\t};"
-    )
-
-    lines.append(
-        "\t\t\tname = Release;"
-    )
-
-    lines.append(
-        "\t\t};"
-    )
-
-    lines.append(
-        "/* End XCBuildConfiguration section */"
-    )
-
-    lines.append("")
 
     # ========================================================
-    # XCConfigurationList
+    # CONFIGURATION LISTS
     # ========================================================
 
     lines.append(
-        "/* Begin XCConfigurationList section */"
+        "\t\t{} /* Project configuration list */ = "
+        "{{isa = XCConfigurationList; "
+        "buildConfigurations = (\n"
+        "\t\t\t{},\n"
+        "\t\t\t{},\n"
+        "\t\t); "
+        "defaultConfigurationIsVisible = 0; "
+        "defaultConfigurationName = Release; "
+        "}};"
+        .format(
+            data.configuration_list_project_id,
+            data.debug_project_config_id,
+            data.release_project_config_id
+        )
     )
 
     lines.append(
-        "\t\t"
-        + data.project_config_list_id
-        + " /* Build configuration list for PBXProject \""
-        + PROJECT_NAME
-        + "\" */ = {"
+        "\t\t{} /* Target configuration list */ = "
+        "{{isa = XCConfigurationList; "
+        "buildConfigurations = (\n"
+        "\t\t\t{},\n"
+        "\t\t\t{},\n"
+        "\t\t); "
+        "defaultConfigurationIsVisible = 0; "
+        "defaultConfigurationName = Release; "
+        "}};"
+        .format(
+            data.configuration_list_target_id,
+            data.debug_target_config_id,
+            data.release_target_config_id
+        )
     )
-
-    lines.append(
-        "\t\t\tisa = XCConfigurationList;"
-    )
-
-    lines.append(
-        "\t\t\tbuildConfigurations = ("
-    )
-
-    lines.append(
-        "\t\t\t\t"
-        + data.debug_project_config_id
-        + " /* Debug */,"
-    )
-
-    lines.append(
-        "\t\t\t\t"
-        + data.release_project_config_id
-        + " /* Release */,"
-    )
-
-    lines.append(
-        "\t\t\t);"
-    )
-
-    lines.append(
-        "\t\t\tdefaultConfigurationIsVisible = 0;"
-    )
-
-    lines.append(
-        "\t\t\tdefaultConfigurationName = Release;"
-    )
-
-    lines.append(
-        "\t\t};"
-    )
-
-    lines.append(
-        "\t\t"
-        + data.target_config_list_id
-        + " /* Build configuration list for PBXNativeTarget \""
-        + TARGET_NAME
-        + "\" */ = {"
-    )
-
-    lines.append(
-        "\t\t\tisa = XCConfigurationList;"
-    )
-
-    lines.append(
-        "\t\t\tbuildConfigurations = ("
-    )
-
-    lines.append(
-        "\t\t\t\t"
-        + data.debug_target_config_id
-        + " /* Debug */,"
-    )
-
-    lines.append(
-        "\t\t\t\t"
-        + data.release_target_config_id
-        + " /* Release */,"
-    )
-
-    lines.append(
-        "\t\t\t);"
-    )
-
-    lines.append(
-        "\t\t\tdefaultConfigurationIsVisible = 0;"
-    )
-
-    lines.append(
-        "\t\t\tdefaultConfigurationName = Release;"
-    )
-
-    lines.append(
-        "\t\t};"
-    )
-
-    lines.append(
-        "/* End XCConfigurationList section */"
-    )
-
-    lines.append("")
 
     # ========================================================
-    # END
+    # END OBJECTS
     # ========================================================
 
-    lines.append(
-        "\t};"
+    lines.append("\t};")
+    lines.append("\trootObject = {} /* Project object */;".format(
+        data.project_id
+    ))
+    lines.append("}")
+
+    # --------------------------------------------------------
+    # Write file
+    # --------------------------------------------------------
+
+    os.makedirs(
+        PROJECT_DIRECTORY,
+        exist_ok=True
     )
 
-    lines.append(
-        "\trootObject = "
-        + data.project_id
-        + " /* Project object */;"
-    )
+    with open(
+        PROJECT_FILE,
+        "w",
+        encoding="utf-8"
+    ) as f:
 
-    lines.append(
-        "}"
-    )
-
-    return "\n".join(
-        lines
-    )
+        f.write(
+            "\n".join(lines)
+        )
 
 
 # ============================================================
@@ -1830,76 +1537,32 @@ def generate_project():
 
 def main():
 
-    print("")
     print("============================================")
     print(" Asasec Xcode Project Generator")
     print("============================================")
-    print("")
-
-    print(
-        "Project : "
-        + PROJECT_NAME
-    )
-
-    print(
-        "Target  : "
-        + TARGET_NAME
-    )
-
-    print(
-        "Bundle  : "
-        + BUNDLE_IDENTIFIER
-    )
-
-    print("")
-
-    if not os.path.isdir(
-        SOURCE_ROOT
-    ):
-
-        raise SystemExit(
-            "HATA: "
-            + SOURCE_ROOT
-            + " klasörü bulunamadı."
-        )
+    print("Project :", PROJECT_NAME)
+    print("Target  :", TARGET_NAME)
+    print("Bundle  :", BUNDLE_IDENTIFIER)
+    print("Source  :", SOURCE_ROOT)
+    print()
 
     # --------------------------------------------------------
-    # Scan
+    # Check source root
     # --------------------------------------------------------
 
-    files = scan_project_files()
-    assets = scan_asset_catalogs()
-
-    print(
-        "Kaynak / resource dosyaları: "
-        + str(len(files))
-    )
-
-    print(
-        "Asset catalogları: "
-        + str(len(assets))
-    )
-
-    print("")
-
-    for path in files:
+    if not os.path.isdir(SOURCE_ROOT):
 
         print(
-            "  FILE     "
-            + path
+            "ERROR: Kaynak klasörü bulunamadı:"
         )
-
-    for path in assets:
-
         print(
-            "  ASSET    "
-            + path
+            os.path.abspath(SOURCE_ROOT)
         )
 
-    print("")
+        return 1
 
     # --------------------------------------------------------
-    # Remove old project
+    # Clean old generated project
     # --------------------------------------------------------
 
     if os.path.isdir(
@@ -1907,111 +1570,156 @@ def main():
     ):
 
         print(
-            "Eski xcodeproj siliniyor..."
+            "Eski Xcode projesi siliniyor..."
         )
 
         shutil.rmtree(
             PROJECT_DIRECTORY
         )
 
-    os.makedirs(
-        PROJECT_DIRECTORY,
-        exist_ok=True
+    # --------------------------------------------------------
+    # Create data
+    # --------------------------------------------------------
+
+    data = ProjectData()
+
+    # --------------------------------------------------------
+    # Create PBX groups
+    # --------------------------------------------------------
+
+    create_group_tree(
+        data
     )
 
     # --------------------------------------------------------
-    # Generate
+    # Scan normal files
     # --------------------------------------------------------
+
+    project_files = scan_project_files()
 
     print(
-        "project.pbxproj oluşturuluyor..."
+        "Kaynak / resource dosyaları:",
+        len(project_files)
     )
 
-    project_text = generate_project()
+    for item in project_files:
 
-    with open(
-        PROJECT_FILE,
-        "w",
-        encoding="utf-8",
-        newline="\n"
-    ) as file:
+        print(
+            "  FILE",
+            item["relative_path"]
+        )
 
-        file.write(
-            project_text
+        add_file(
+            data,
+            item
         )
 
     # --------------------------------------------------------
-    # Validation
+    # Scan assets
     # --------------------------------------------------------
 
-    if not os.path.isfile(
-        PROJECT_FILE
+    asset_catalogs = scan_asset_catalogs()
+
+    print(
+        "Asset catalogları:",
+        len(asset_catalogs)
+    )
+
+    for item in asset_catalogs:
+
+        print(
+            "  ASSET",
+            item["relative_path"]
+        )
+
+        add_asset_catalog(
+            data,
+            item
+        )
+
+    # --------------------------------------------------------
+    # Generate project
+    # --------------------------------------------------------
+
+    print()
+    print(
+        "Xcode project oluşturuluyor..."
+    )
+
+    generate_project(
+        data
+    )
+
+    # --------------------------------------------------------
+    # Final information
+    # --------------------------------------------------------
+
+    print()
+    print("============================================")
+    print(" Tamamlandı")
+    print("============================================")
+    print(
+        "Project:",
+        os.path.abspath(PROJECT_DIRECTORY)
+    )
+
+    print()
+    print("Kontrol edilen dosya yolları:")
+
+    for relative_path in sorted(
+        data.file_references.keys()
     ):
 
-        raise SystemExit(
-            "HATA: project.pbxproj oluşturulamadı."
+        print(
+            "  ✓",
+            relative_path
         )
 
-    if os.path.getsize(
-        PROJECT_FILE
-    ) == 0:
-
-        raise SystemExit(
-            "HATA: project.pbxproj boş oluşturuldu."
-        )
-
-    print("")
-
+    print()
     print(
-        "project.pbxproj oluşturuldu:"
+        "Build kaynakları:",
+        len(data.source_build_files)
     )
 
     print(
-        "  "
-        + PROJECT_FILE
+        "Resources:",
+        len(data.resource_build_files)
     )
 
-    print("")
-
+    print()
     print(
-        "Dosya boyutu: "
-        + str(
-            os.path.getsize(
-                PROJECT_FILE
-            )
-        )
-        + " bytes"
+        "ÖNEMLİ: Eski .xcodeproj tamamen silinip"
     )
-
-    print("")
-
     print(
-        "Kaynak sayısı: "
-        + str(len(files))
+        "yeni proje oluşturuldu."
     )
 
-    print(
-        "Asset catalog sayısı: "
-        + str(len(assets))
-    )
+    return 0
 
-    print("")
 
-    print(
-        "============================================"
-    )
+# ============================================================
+# GLOBAL BUILD PHASE HELPER
+# ============================================================
 
-    print(
-        " Xcode project hazır."
-    )
-
-    print(
-        "============================================"
-    )
-
-    print("")
+data_global = None
 
 
 if __name__ == "__main__":
 
-    main()
+    # --------------------------------------------------------
+    # generate_project() build phase helper'larının data'ya
+    # erişebilmesi için global referans.
+    # --------------------------------------------------------
+
+    original_generate_project = generate_project
+
+    def generate_project_with_global(data):
+        global data_global
+        data_global = data
+        return original_generate_project(data)
+
+    generate_project = generate_project_with_global
+
+    raise SystemExit(
+        main()
+    )
