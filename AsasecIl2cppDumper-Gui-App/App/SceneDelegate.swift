@@ -9,25 +9,59 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         willConnectTo session: UISceneSession,
         options connectionOptions: UIScene.ConnectionOptions
     ) {
+
         guard let windowScene = scene as? UIWindowScene else {
-            print("ASASEC ERROR: UIWindowScene yok")
             return
         }
 
-        print("ASASEC: Scene başladı")
-
         let window = UIWindow(windowScene: windowScene)
 
-        let testViewController = UIViewController()
-        testViewController.view.backgroundColor = .systemRed
+        let viewController = UIViewController()
 
-        print("ASASEC: Test UIViewController oluşturuldu")
+        viewController.view.backgroundColor = .systemRed
 
-        window.rootViewController = testViewController
-        window.makeKeyAndVisible()
+        let label = UILabel()
+
+        label.text = """
+        ASASEC DEBUG
+
+        SCENE ÇALIŞIYOR
+
+        UIWindow oluşturuldu
+        UIViewController oluşturuldu
+        """
+
+        label.textColor = .white
+        label.font = UIFont.systemFont(
+            ofSize: 22,
+            weight: .bold
+        )
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        viewController.view.addSubview(label)
+
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(
+                equalTo: viewController.view.leadingAnchor,
+                constant: 20
+            ),
+
+            label.trailingAnchor.constraint(
+                equalTo: viewController.view.trailingAnchor,
+                constant: -20
+            ),
+
+            label.centerYAnchor.constraint(
+                equalTo: viewController.view.centerYAnchor
+            )
+        ])
+
+        window.rootViewController = viewController
 
         self.window = window
 
-        print("ASASEC: Window makeKeyAndVisible yapıldı")
+        window.makeKeyAndVisible()
     }
 }
