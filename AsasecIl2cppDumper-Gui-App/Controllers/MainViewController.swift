@@ -1,4 +1,4 @@
-Import UIKit
+import UIKit
 
 final class MainViewController:
     UIViewController {
