@@ -1264,6 +1264,10 @@ def emit_target_configuration(
     )
 
     lines.append(
+        "\t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;"
+    )
+
+    lines.append(
         "\t\t\t\tCODE_SIGN_STYLE = Automatic;"
     )
 
