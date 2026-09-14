@@ -47,9 +47,13 @@ jobs:
       - name: Find APP
         run: |
           echo "Build klasörleri:"
-          find "$PWD/build" -type d -name "*.app" -print
 
-      - name: Package APP
+          find "$PWD/build" \
+            -type d \
+            -name "*.app" \
+            -print
+
+      - name: Prepare APP
         run: |
           APP_PATH=$(find "$PWD/build" \
             -type d \
@@ -65,28 +69,24 @@ jobs:
           echo "$APP_PATH"
 
           rm -rf "$PWD/output"
+
           mkdir -p "$PWD/output"
 
           cp -R "$APP_PATH" \
             "$PWD/output/AsasecIl2cppDumper.app"
 
-      - name: Create ZIP
+      - name: Check APP
         run: |
-          cd "$PWD/output"
+          echo "Artifact olarak gönderilecek APP:"
 
-          zip -r \
-            "../AsasecIl2cppDumper.zip" \
-            "AsasecIl2cppDumper.app"
+          find "$PWD/output/AsasecIl2cppDumper.app" \
+            -maxdepth 2 \
+            -print
 
-      - name: Check ZIP Contents
-        run: |
-          echo "ZIP içeriği:"
-          unzip -l "$PWD/AsasecIl2cppDumper.zip"
-
-      - name: Upload APP ZIP
+      - name: Upload APP
         uses: actions/upload-artifact@v4
 
         with:
           name: AsasecIl2cppDumper
-          path: AsasecIl2cppDumper.zip
+          path: output/AsasecIl2cppDumper.app
           if-no-files-found: error
