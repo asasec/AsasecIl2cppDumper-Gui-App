@@ -1515,7 +1515,7 @@ def emit_target_configuration(
     )
 
     lines.append(
-        "\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 13.0;"
+        "\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 14.0;"
     )
 
     lines.append(
