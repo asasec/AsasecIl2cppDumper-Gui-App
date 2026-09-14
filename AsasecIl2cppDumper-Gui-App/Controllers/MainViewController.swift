@@ -1,4 +1,4 @@
-import UIKit
+Import UIKit
 
 final class MainViewController:
     UIViewController {
@@ -162,6 +162,8 @@ final class MainViewController:
         setupHero()
 
         setupPaths()
+
+        setupOutput()
 
         setupBottom()
 
@@ -565,6 +567,18 @@ final class MainViewController:
 
         pathsCard.addSubview(
             metadataInput
+        )
+    }
+
+    // MARK: Output
+
+    private func setupOutput() {
+
+        outputConsole.translatesAutoresizingMaskIntoConstraints =
+            false
+
+        contentView.addSubview(
+            outputConsole
         )
     }
 
