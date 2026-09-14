@@ -14,16 +14,20 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             return
         }
 
-        let window = UIWindow(
-            windowScene: windowScene
-        )
+        print("ASASEC: Scene başladı")
 
-        let controller = MainViewController()
+        let window = UIWindow(windowScene: windowScene)
+
+        let controller = UIViewController()
+        controller.view.backgroundColor = .systemBackground
+
+        print("ASASEC: Basit UIViewController oluşturuldu")
 
         window.rootViewController = controller
-
         window.makeKeyAndVisible()
 
         self.window = window
+
+        print("ASASEC: Window görünür")
     }
 }
