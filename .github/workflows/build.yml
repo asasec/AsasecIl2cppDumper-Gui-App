@@ -46,14 +46,23 @@ jobs:
 
       - name: Find APP
         run: |
-          echo "Build klasörleri:"
-
-          find "$PWD/build" \
+          APP_PATH=$(find "$PWD/build" \
             -type d \
-            -name "*.app" \
-            -print
+            -name "AsasecIl2cppDumper-Gui-App.app" \
+            | head -n 1)
 
-      - name: Prepare APP
+          if [ -z "$APP_PATH" ]; then
+            echo "HATA: .app bulunamadı!"
+            exit 1
+          fi
+
+          echo "APP:"
+          echo "$APP_PATH"
+
+          echo "APP içeriği:"
+          find "$APP_PATH" -maxdepth 2 -print
+
+      - name: Create IPA
         run: |
           APP_PATH=$(find "$PWD/build" \
             -type d \
@@ -61,32 +70,33 @@ jobs:
             | head -n 1)
 
           if [ -z "$APP_PATH" ]; then
-            echo "HATA: .app dosyası bulunamadı!"
+            echo "HATA: .app bulunamadı!"
             exit 1
           fi
 
-          echo "APP bulundu:"
-          echo "$APP_PATH"
-
-          rm -rf "$PWD/output"
-
-          mkdir -p "$PWD/output"
+          rm -rf "$PWD/ipa"
+          mkdir -p "$PWD/ipa/Payload"
 
           cp -R "$APP_PATH" \
-            "$PWD/output/AsasecIl2cppDumper.app"
+            "$PWD/ipa/Payload/AsasecIl2cppDumper.app"
 
-      - name: Check APP
+          cd "$PWD/ipa"
+
+          zip -r \
+            "$PWD/AsasecIl2cppDumper.ipa" \
+            Payload
+
+      - name: Check IPA
         run: |
-          echo "Artifact olarak gönderilecek APP:"
+          echo "IPA içeriği:"
 
-          find "$PWD/output/AsasecIl2cppDumper.app" \
-            -maxdepth 2 \
-            -print
+          unzip -l \
+            "$PWD/AsasecIl2cppDumper.ipa"
 
-      - name: Upload APP
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
 
         with:
-          name: AsasecIl2cppDumper
-          path: output/AsasecIl2cppDumper.app
+          name: AsasecIl2cppDumper-IPA
+          path: AsasecIl2cppDumper.ipa
           if-no-files-found: error
