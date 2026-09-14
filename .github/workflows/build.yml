@@ -18,9 +18,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+
       - name: Show Xcode Version
         run: |
           xcodebuild -version
+
 
       - name: Clean Build
         run: |
@@ -29,8 +31,9 @@ jobs:
             -scheme "AsasecIl2cppDumper-Gui-App" \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath "$PWD/build" \
+            -derivedDataPath "$GITHUB_WORKSPACE/build" \
             clean
+
 
       - name: Build iOS App
         run: |
@@ -39,14 +42,16 @@ jobs:
             -scheme "AsasecIl2cppDumper-Gui-App" \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath "$PWD/build" \
+            -derivedDataPath "$GITHUB_WORKSPACE/build" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             DEVELOPMENT_TEAM=""
 
+
       - name: Find APP
         run: |
-          APP_PATH=$(find "$PWD/build" \
+
+          APP_PATH=$(find "$GITHUB_WORKSPACE/build" \
             -type d \
             -name "AsasecIl2cppDumper-Gui-App.app" \
             | head -n 1)
@@ -59,12 +64,16 @@ jobs:
           echo "APP bulundu:"
           echo "$APP_PATH"
 
+          echo ""
           echo "APP içeriği:"
+
           find "$APP_PATH" -maxdepth 2 -print
+
 
       - name: Create IPA
         run: |
-          APP_PATH=$(find "$PWD/build" \
+
+          APP_PATH=$(find "$GITHUB_WORKSPACE/build" \
             -type d \
             -name "AsasecIl2cppDumper-Gui-App.app" \
             | head -n 1)
@@ -74,45 +83,94 @@ jobs:
             exit 1
           fi
 
-          rm -rf "$PWD/ipa"
+          echo "APP:"
+          echo "$APP_PATH"
 
-          mkdir -p "$PWD/ipa/Payload"
+          echo ""
+
+          rm -rf "$GITHUB_WORKSPACE/ipa"
+
+          mkdir -p "$GITHUB_WORKSPACE/ipa/Payload"
 
           echo "APP Payload içine kopyalanıyor..."
 
-          cp -R "$APP_PATH" \
-            "$PWD/ipa/Payload/AsasecIl2cppDumper.app"
+          cp -R \
+            "$APP_PATH" \
+            "$GITHUB_WORKSPACE/ipa/Payload/AsasecIl2cppDumper.app"
+
+          echo ""
+
+          echo "Payload içeriği:"
+
+          find "$GITHUB_WORKSPACE/ipa/Payload" -maxdepth 3 -print
+
+          echo ""
 
           echo "IPA oluşturuluyor..."
 
-          cd "$PWD/ipa"
+          cd "$GITHUB_WORKSPACE/ipa"
 
           zip -r \
-            "$PWD/AsasecIl2cppDumper.ipa" \
+            "$GITHUB_WORKSPACE/AsasecIl2cppDumper.ipa" \
             Payload
+
+          echo ""
+
+          echo "IPA oluşturuldu:"
+
+          ls -lh "$GITHUB_WORKSPACE/AsasecIl2cppDumper.ipa"
+
 
       - name: Verify IPA
         run: |
-          IPA_PATH="$PWD/AsasecIl2cppDumper.ipa"
+
+          IPA_PATH="$GITHUB_WORKSPACE/AsasecIl2cppDumper.ipa"
+
+          echo "Kontrol edilen IPA:"
+          echo "$IPA_PATH"
 
           if [ ! -f "$IPA_PATH" ]; then
+
+            echo ""
             echo "HATA: IPA oluşturulamadı!"
-            echo "Beklenen yol:"
-            echo "$IPA_PATH"
+
+            echo ""
+            echo "GITHUB_WORKSPACE:"
+            echo "$GITHUB_WORKSPACE"
+
+            echo ""
+            echo "Mevcut dosyalar:"
+
+            find "$GITHUB_WORKSPACE" \
+              -maxdepth 3 \
+              -name "*.ipa" \
+              -print
+
             exit 1
           fi
 
+          echo ""
           echo "IPA başarıyla oluşturuldu:"
           echo "$IPA_PATH"
 
           echo ""
+          echo "IPA boyutu:"
+
+          ls -lh "$IPA_PATH"
+
+          echo ""
           echo "IPA içeriği:"
+
           unzip -l "$IPA_PATH"
+
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
 
         with:
+
           name: AsasecIl2cppDumper-IPA
-          path: AsasecIl2cppDumper.ipa
+
+          path: ${{ github.workspace }}/AsasecIl2cppDumper.ipa
+
           if-no-files-found: error
