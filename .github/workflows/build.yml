@@ -22,22 +22,62 @@ jobs:
         run: |
           xcodebuild -version
 
+      - name: Clean Build
+        run: |
+          xcodebuild \
+            -project "AsasecIl2cppDumper-Gui-App.xcodeproj" \
+            -scheme "AsasecIl2cppDumper-Gui-App" \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath "$PWD/build" \
+            clean
+
       - name: Build iOS App
         run: |
           xcodebuild \
             -project "AsasecIl2cppDumper-Gui-App.xcodeproj" \
             -scheme "AsasecIl2cppDumper-Gui-App" \
-            -sdk iphoneos \
             -configuration Release \
-            -derivedDataPath build \
+            -sdk iphoneos \
+            -derivedDataPath "$PWD/build" \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
+            CODE_SIGNING_REQUIRED=NO \
+            DEVELOPMENT_TEAM=""
+
+      - name: Find APP
+        run: |
+          echo "Build klasörleri:"
+          find "$PWD/build" -maxdepth 6 -type d -name "*.app" -print
+
+      - name: Package APP
+        run: |
+          APP_PATH=$(find "$PWD/build" -type d -name "AsasecIl2cppDumper-Gui-App.app" | head -n 1)
+
+          if [ -z "$APP_PATH" ]; then
+            echo "HATA: .app dosyası bulunamadı!"
+            exit 1
+          fi
+
+          echo "APP bulundu:"
+          echo "$APP_PATH"
+
+          mkdir -p "$PWD/output"
+
+          cp -R "$APP_PATH" \
+            "$PWD/output/AsasecIl2cppDumper.app"
+
+      - name: Zip APP
+        run: |
+          cd "$PWD/output"
+
+          zip -r \
+            "AsasecIl2cppDumper.app.zip" \
+            "AsasecIl2cppDumper.app"
 
       - name: Upload APP
         uses: actions/upload-artifact@v4
 
         with:
-          name: AsasecIl2cppDumper-Gui-App
-
-          path: |
-            build/Build/Products/Release-iphoneos/AsasecIl2cppDumper-Gui-App.app
+          name: AsasecIl2cppDumper-APP
+          path: output/AsasecIl2cppDumper.app.zip
+          if-no-files-found: error
