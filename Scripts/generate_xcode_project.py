@@ -1487,6 +1487,10 @@ def emit_target_configuration(
     )
 
     lines.append(
+        "\t\t\t\tGENERATE_ASSET_SYMBOLS = NO;"
+    )
+
+    lines.append(
         "\t\t\t\tGENERATE_INFOPLIST_FILE = NO;"
     )
 
